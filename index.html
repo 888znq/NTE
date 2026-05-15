@@ -15,7 +15,7 @@
             height: 100%;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #050520;
-            overflow: hidden; /* Prevents unwanted page scrolling on mobile devices */
+            overflow: hidden;
         }
         
         /* Main app container */
@@ -31,14 +31,12 @@
         .notepad {
             flex: 1;
             width: 100%;
-            /* Repeating linear gradient creates the exact line spacing */
             background-image: repeating-linear-gradient(
                 transparent, 
                 transparent 48px, 
                 rgba(255, 255, 255, 0.6) 48px, 
                 rgba(255, 255, 255, 0.6) 50px
             );
-            /* Match line-height to the gradient spacing so text sits on the lines */
             line-height: 50px;
             font-size: 26px;
             font-weight: 700;
@@ -52,7 +50,6 @@
             text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.6);
         }
         
-        /* Class toggled via JS for light backgrounds */
         .notepad.light-theme {
             color: #000000;
             text-shadow: none;
@@ -64,7 +61,6 @@
             );
         }
 
-        /* Hide scrollbar for a cleaner look */
         .notepad::-webkit-scrollbar {
             width: 8px;
         }
@@ -81,7 +77,7 @@
             display: flex;
             height: 60px;
             width: 100%;
-            overflow-x: auto; /* Allows scrolling if you add many tabs */
+            overflow-x: auto;
         }
         
         .tab-bar::-webkit-scrollbar { height: 4px; }
@@ -96,6 +92,7 @@
             justify-content: center;
             align-items: center;
             min-width: 50px;
+            max-width: 120px; /* Prevents tabs from stretching infinitely when others are deleted */
         }
         
         .tab-name {
@@ -103,7 +100,6 @@
             font-family: 'Segoe UI', sans-serif;
             font-weight: bold;
             font-size: 14px;
-            /* Strong double text-shadow so white text is readable on ANY background color */
             text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.9), -1px -1px 3px rgba(0, 0, 0, 0.9);
             outline: none;
             white-space: nowrap;
@@ -130,13 +126,11 @@
             margin-left: 8px;
             padding: 0;
             flex-shrink: 0;
-            /* Use opacity instead of display for perfect hover tracking */
             opacity: 0;
             pointer-events: none;
             transition: opacity 0.2s ease, background-color 0.2s ease;
         }
 
-        /* Show button on hover ONLY when app is not locked */
         .tab-bar:not(.locked) .tab:hover .delete-btn {
             opacity: 1;
             pointer-events: auto;
@@ -246,17 +240,15 @@
         const addTabBtn = document.getElementById('add-tab-btn');
         const lockBtn = document.getElementById('lock-btn');
         
-        // Databases for App State
         let notesData = { '1': 'Connecting to Database...' };
         let tabNamesData = {}; 
         let customTabsData = {}; 
     
         let currentCategory = '1';
-        let tabCounter = 9; // Core tabs count
-        let lastHue = Math.floor(Math.random() * 360); // Initialize random hue
-        let isLocked = false; // State to prevent accidental deletion/renaming
+        let tabCounter = 9; 
+        let lastHue = Math.floor(Math.random() * 360); 
+        let isLocked = false; 
     
-        // Math formula to dynamically check if any color (even random ones) is bright
         function isLightColor(rgbStr) {
             const rgb = rgbStr.match(/\d+/g);
             if (!rgb) return false;
@@ -264,7 +256,6 @@
             return brightness > 155;
         }
     
-        // Apply background and dynamic font color theme
         function applyNotepadTheme(targetTab) {
             if (!targetTab) return;
             const bgColor = window.getComputedStyle(targetTab).backgroundColor;
@@ -276,20 +267,17 @@
             }
         }
     
-        // Initialize First Tab Theme
         applyNotepadTheme(document.querySelector('.tab-1'));
     
-        // Firebase Sync Listeners
         const notesRef = ref(db, 'notes');
         const namesRef = ref(db, 'tabNames');
         const customTabsRef = ref(db, 'customTabs');
     
-        // 1. Sync Notes
         onValue(notesRef, (snapshot) => {
             const data = snapshot.val();
             if (data) {
                 notesData = { ...notesData, ...data };
-                if (document.activeElement !== notepad) {
+                if (document.activeElement !== notepad && currentCategory !== null) {
                     notepad.innerText = notesData[currentCategory] || '';
                 }
             } else {
@@ -297,12 +285,10 @@
             }
         });
     
-        // 2. Sync Tab Names
         onValue(namesRef, (snapshot) => {
             const data = snapshot.val();
             if (data) {
                 tabNamesData = data;
-                // Safely update DOM names without stealing user's typing focus
                 document.querySelectorAll('.tab').forEach(tab => {
                     const id = tab.getAttribute('data-category');
                     const span = tab.querySelector('.tab-name');
@@ -313,7 +299,6 @@
             }
         });
     
-        // 3. Sync Custom Added Tabs
         onValue(customTabsRef, (snapshot) => {
             const data = snapshot.val();
             if (data) {
@@ -323,7 +308,6 @@
                     const numId = parseInt(id);
                     if (numId > highestId) highestId = numId;
                     
-                    // If the custom tab doesn't exist in the HTML yet, build it
                     if (!document.querySelector(`.tab[data-category="${id}"]`)) {
                         buildTabUI(id, data[id].color, tabNamesData[id] || 'New');
                     }
@@ -339,22 +323,22 @@
             newTab.style.backgroundColor = hexColor;
             const editableState = isLocked ? "false" : "true";
             newTab.innerHTML = `<span class="tab-name" contenteditable="${editableState}" spellcheck="false">${nameText}</span><button class="delete-btn">×</button>`;
-            // Insert before the lock button so it stays at the end
             tabBar.insertBefore(newTab, lockBtn);
         }
     
-        // Unified Event Delegation: Handles clicks for ANY tab (even newly generated ones)
         tabBar.addEventListener('click', (e) => {
             const clickedTab = e.target.closest('.tab');
-            if (!clickedTab) return; // Ignored if they clicked the + button
+            if (!clickedTab) return; 
     
             const clickedId = clickedTab.getAttribute('data-category');
     
             // Handle Delete Button Click
             if (e.target.classList.contains('delete-btn')) {
-                e.stopPropagation(); // Prevent tab switch
-                if (isLocked) return; // Safety check: ignore clicks if locked
+                e.stopPropagation(); 
+                if (isLocked) return; 
                 
+                const isDeletingActive = (currentCategory === clickedId);
+    
                 // Remove from Firebase
                 remove(ref(db, 'notes/' + clickedId));
                 remove(ref(db, 'tabNames/' + clickedId));
@@ -363,12 +347,20 @@
                 // Remove from DOM
                 clickedTab.remove();
                 
-                // If deleted the active tab, switch to the next available one
-                if (currentCategory === clickedId) {
+                // Fixed: Clean state switch without triggering the event listener's auto-save
+                if (isDeletingActive) {
                     const remainingTabs = document.querySelectorAll('.tab');
                     if (remainingTabs.length > 0) {
-                        remainingTabs[0].click();
+                        const nextTab = remainingTabs[0];
+                        const nextId = nextTab.getAttribute('data-category');
+                        
+                        currentCategory = nextId;
+                        notepad.innerText = notesData[currentCategory] || '';
+                        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                        nextTab.classList.add('active');
+                        applyNotepadTheme(nextTab);
                     } else {
+                        currentCategory = null; // Important: Prevents saving to 'null'
                         notepad.innerText = '';
                         notepad.style.backgroundColor = '#050520';
                         notepad.classList.remove('light-theme');
@@ -380,8 +372,10 @@
             // Only save & switch if clicking a different tab
             if (currentCategory !== clickedId) {
                 // Save current
-                notesData[currentCategory] = notepad.innerText;
-                set(ref(db, 'notes/' + currentCategory), notepad.innerText);
+                if (currentCategory !== null) {
+                    notesData[currentCategory] = notepad.innerText;
+                    set(ref(db, 'notes/' + currentCategory), notepad.innerText);
+                }
     
                 // Switch Visuals
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -393,13 +387,11 @@
                 applyNotepadTheme(clickedTab);
             }
             
-            // Focus notepad if they clicked the color block, but let them type if they clicked the text span
             if (!e.target.classList.contains('tab-name')) {
                 notepad.focus();
             }
         });
     
-        // Save Tab Names to Firebase when edited
         let nameTimer;
         tabBar.addEventListener('input', (e) => {
             if (e.target.classList.contains('tab-name')) {
@@ -414,21 +406,17 @@
             }
         });
     
-        // Add a brand new Tab
         addTabBtn.addEventListener('click', () => {
             tabCounter++;
             const newId = tabCounter.toString();
             
-            // Use Golden Angle to ensure distinct hues every time a tab is added
             lastHue = (lastHue + 137.5) % 360;
             const distinctColor = `hsl(${lastHue}, 75%, 55%)`;
             
-            // Pushing to Firebase instantly creates it across all connected devices via the onValue listener
             set(ref(db, 'customTabs/' + newId), { color: distinctColor });
             set(ref(db, 'tabNames/' + newId), 'New');
         });
         
-        // Toggle Lock Mode (Hides delete buttons and disables renaming)
         lockBtn.addEventListener('click', () => {
             isLocked = !isLocked;
             if (isLocked) {
@@ -442,39 +430,38 @@
             }
         });
     
-        // Smart Click: Allow clicking on empty background lines to instantly start typing there
-                notepad.addEventListener('click', (e) => {
-                    if (e.target === notepad) {
-                        var rect = notepad.getBoundingClientRect();
-                        var clickY = e.clientY - rect.top + notepad.scrollTop;
-                        var targetLineIndex = Math.floor(clickY / 50); // 50px is our exact line-height
-                        
-                        var currentLines = notepad.innerText.split('\n');
-                        
-                        // If clicked below the current text, fill the gap with invisible newlines
-                        if (targetLineIndex >= currentLines.length) {
-                            var linesToAdd = targetLineIndex - currentLines.length + 1;
-                            notepad.innerText += '\n'.repeat(linesToAdd);
-                            
-                            // Force the blinking text cursor to jump to the very end
-                            var range = document.createRange();
-                            var selection = window.getSelection();
-                            range.selectNodeContents(notepad);
-                            range.collapse(false);
-                            selection.removeAllRanges();
-                            selection.addRange(range);
-                            
-                            // Trigger the auto-save so Firebase knows about the new blank lines
-                            notepad.dispatchEvent(new Event('input'));
-                        }
-                    }
-                });
-        
-                // Save Notes to Firebase
-                let typingTimer;
-                notepad.addEventListener('input', () => {
-                    notesData[currentCategory] = notepad.innerText;
+        notepad.addEventListener('click', (e) => {
+            if (e.target === notepad) {
+                if (!currentCategory) return; // Block formatting if no active tabs exist
+
+                var rect = notepad.getBoundingClientRect();
+                var clickY = e.clientY - rect.top + notepad.scrollTop;
+                var targetLineIndex = Math.floor(clickY / 50); 
+                
+                var currentLines = notepad.innerText.split('\n');
+                
+                if (targetLineIndex >= currentLines.length) {
+                    var linesToAdd = targetLineIndex - currentLines.length + 1;
+                    notepad.innerText += '\n'.repeat(linesToAdd);
+                    
+                    var range = document.createRange();
+                    var selection = window.getSelection();
+                    range.selectNodeContents(notepad);
+                    range.collapse(false);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                    
+                    notepad.dispatchEvent(new Event('input'));
+                }
+            }
+        });
+    
+        let typingTimer;
+        notepad.addEventListener('input', () => {
+            if (!currentCategory) return; // Prevent writing to database if all tabs are deleted
             
+            notesData[currentCategory] = notepad.innerText;
+    
             clearTimeout(typingTimer);
             typingTimer = setTimeout(() => {
                 set(ref(db, 'notes/' + currentCategory), notepad.innerText);
