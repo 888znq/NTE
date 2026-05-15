@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Tab Notepad</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body, html {
+            height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #050520;
+            overflow: hidden; /* Prevents unwanted page scrolling on mobile devices */
+        }
+        
+        /* Main app container */
+        .app-container {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #050520;
+        }
+
+        /* Lined notepad area */
+        .notepad {
+            flex: 1;
+            width: 100%;
+            /* Repeating linear gradient creates the exact line spacing */
+            background-image: repeating-linear-gradient(
+                transparent, 
+                transparent 48px, 
+                rgba(255, 255, 255, 0.6) 48px, 
+                rgba(255, 255, 255, 0.6) 50px
+            );
+            /* Match line-height to the gradient spacing so text sits on the lines */
+            line-height: 50px;
+            font-size: 26px;
+            font-weight: 700;
+            color: #ffffff;
+            padding: 0 20px;
+            outline: none;
+            overflow-y: auto;
+            resize: none;
+            white-space: pre-wrap;
+            transition: background-color 0.2s ease;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.6);
+        }
+        
+        /* Class toggled via JS for light backgrounds */
+        .notepad.light-theme {
+            color: #000000;
+            text-shadow: none;
+            background-image: repeating-linear-gradient(
+                transparent, 
+                transparent 48px, 
+                rgba(0, 0, 0, 0.5) 48px, 
+                rgba(0, 0, 0, 0.5) 50px
+            );
+        }
+
+        /* Hide scrollbar for a cleaner look */
+        .notepad::-webkit-scrollbar {
+            width: 8px;
+        }
+        .notepad::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .notepad::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        /* Bottom Tab Bar */
+        .tab-bar {
+            display: flex;
+            height: 60px;
+            width: 100%;
+            overflow-x: auto; /* Allows scrolling if you add many tabs */
+        }
+        
+        .tab-bar::-webkit-scrollbar { height: 4px; }
+        .tab-bar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); }
+        
+        .tab {
+            flex: 1;
+            cursor: pointer;
+            transition: filter 0.2s, transform 0.1s;
+            border: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-width: 50px;
+        }
+        
+        .tab-name {
+            color: #ffffff;
+            font-family: 'Segoe UI', sans-serif;
+            font-weight: bold;
+            font-size: 14px;
+            /* Strong double text-shadow so white text is readable on ANY background color */
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.9), -1px -1px 3px rgba(0, 0, 0, 0.9);
+            outline: none;
+            white-space: nowrap;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: text;
+        }
+        
+        .tab-name:focus {
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+        
+        .delete-btn {
+            background-color: rgba(0, 0, 0, 0.4);
+            color: #ffffff;
+            border: none;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 12px;
+            line-height: 18px;
+            text-align: center;
+            cursor: pointer;
+            margin-left: 8px;
+            padding: 0;
+            flex-shrink: 0;
+            /* Use opacity instead of display for perfect hover tracking */
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, background-color 0.2s ease;
+        }
+
+        /* Show button on hover ONLY when app is not locked */
+        .tab-bar:not(.locked) .tab:hover .delete-btn {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        
+        .delete-btn:hover {
+            background-color: #ff3333;
+        }
+
+        .lock-btn {
+            width: 60px;
+            min-width: 60px;
+            background-color: #1a1a2e;
+            color: white;
+            font-size: 24px;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+
+        .lock-btn:hover {
+            background-color: #2a2a3e;
+        }
+        
+        .add-tab-btn {
+            width: 60px;
+            min-width: 60px;
+            background-color: #222233;
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+        
+        .add-tab-btn:hover {
+            background-color: #444455;
+        }
+        
+        .tab:hover {
+            filter: brightness(1.2);
+        }
+        
+        .tab.active {
+            box-shadow: inset 0 5px 0px rgba(255, 255, 255, 0.8);
+        }
+
+        /* Ordered Colors */
+        .tab-1 { background-color: #FF0000; } /* Red */
+        .tab-2 { background-color: #000000; } /* Black */
+        .tab-3 { background-color: #FFFF00; } /* Yellow */
+        .tab-4 { background-color: #0000FF; } /* Blue */
+        .tab-5 { background-color: #00FF00; } /* Green */
+        .tab-6 { background-color: #FFC0CB; } /* Pink */
+        .tab-7 { background-color: #00FFFF; } /* Cyan */
+        .tab-8 { background-color: #808080; } /* Grey */
+        .tab-9 { background-color: #FFFFFF; } /* White */
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <div class="notepad" id="notepad" contenteditable="true" spellcheck="false"></div>
+
+        <div class="tab-bar" id="tab-bar">
+            <div class="tab tab-1 active" data-category="1"><span class="tab-name" contenteditable="true" spellcheck="false">1</span><button class="delete-btn">×</button></div>
+            <div class="tab tab-2" data-category="2"><span class="tab-name" contenteditable="true" spellcheck="false">2</span><button class="delete-btn">×</button></div>
+            <div class="tab tab-3" data-category="3"><span class="tab-name" contenteditable="true" spellcheck="false">3</span><button class="delete-btn">×</button></div>
+            <div class="tab tab-4" data-category="4"><span class="tab-name" contenteditable="true" spellcheck="false">4</span><button class="delete-btn">×</button></div>
+            <div class="tab tab-5" data-category="5"><span class="tab-name" contenteditable="true" spellcheck="false">5</span><button class="delete-btn">×</button></div>
+            <div class="tab tab-6" data-category="6"><span class="tab-name" contenteditable="true" spellcheck="false">6</span><button class="delete-btn">×</button></div>
+            <div class="tab tab-7" data-category="7"><span class="tab-name" contenteditable="true" spellcheck="false">7</span><button class="delete-btn">×</button></div>
+            <div class="tab tab-8" data-category="8"><span class="tab-name" contenteditable="true" spellcheck="false">8</span><button class="delete-btn">×</button></div>
+            <div class="tab tab-9" data-category="9"><span class="tab-name" contenteditable="true" spellcheck="false">9</span><button class="delete-btn">×</button></div>
+            <button class="lock-btn" id="lock-btn" title="Toggle Edit/Delete Mode">🔓</button>
+            <button class="add-tab-btn" id="add-tab-btn">+</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+    
+        const firebaseConfig = {
+            apiKey: "AIzaSyAYHA8Qw3Qw3Qzbyg8MtjrSKcJusNi4VaA6V4",
+            authDomain: "system-data-bf026.firebaseapp.com",
+            databaseURL: "https://system-data-bf026-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "system-data-bf026",
+            storageBucket: "system-data-bf026.firebasestorage.app",
+            messagingSenderId: "718302899022",
+            appId: "1:718302899022:web:f1675dbcc293e138c68c1f"
+        };
+    
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+    
+        const notepad = document.getElementById('notepad');
+        const tabBar = document.getElementById('tab-bar');
+        const addTabBtn = document.getElementById('add-tab-btn');
+        const lockBtn = document.getElementById('lock-btn');
+        
+        // Databases for App State
+        let notesData = { '1': 'Connecting to Database...' };
+        let tabNamesData = {}; 
+        let customTabsData = {}; 
+    
+        let currentCategory = '1';
+        let tabCounter = 9; // Core tabs count
+        let lastHue = Math.floor(Math.random() * 360); // Initialize random hue
+        let isLocked = false; // State to prevent accidental deletion/renaming
+    
+        // Math formula to dynamically check if any color (even random ones) is bright
+        function isLightColor(rgbStr) {
+            const rgb = rgbStr.match(/\d+/g);
+            if (!rgb) return false;
+            const brightness = (parseInt(rgb[0]) * 299 + parseInt(rgb[1]) * 587 + parseInt(rgb[2]) * 114) / 1000;
+            return brightness > 155;
+        }
+    
+        // Apply background and dynamic font color theme
+        function applyNotepadTheme(targetTab) {
+            if (!targetTab) return;
+            const bgColor = window.getComputedStyle(targetTab).backgroundColor;
+            notepad.style.backgroundColor = bgColor;
+            if (isLightColor(bgColor)) {
+                notepad.classList.add('light-theme');
+            } else {
+                notepad.classList.remove('light-theme');
+            }
+        }
+    
+        // Initialize First Tab Theme
+        applyNotepadTheme(document.querySelector('.tab-1'));
+    
+        // Firebase Sync Listeners
+        const notesRef = ref(db, 'notes');
+        const namesRef = ref(db, 'tabNames');
+        const customTabsRef = ref(db, 'customTabs');
+    
+        // 1. Sync Notes
+        onValue(notesRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                notesData = { ...notesData, ...data };
+                if (document.activeElement !== notepad) {
+                    notepad.innerText = notesData[currentCategory] || '';
+                }
+            } else {
+                if (document.activeElement !== notepad) notepad.innerText = 'Database connected. Start typing...';
+            }
+        });
+    
+        // 2. Sync Tab Names
+        onValue(namesRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                tabNamesData = data;
+                // Safely update DOM names without stealing user's typing focus
+                document.querySelectorAll('.tab').forEach(tab => {
+                    const id = tab.getAttribute('data-category');
+                    const span = tab.querySelector('.tab-name');
+                    if (span && data[id] !== undefined && document.activeElement !== span) {
+                        span.innerText = data[id];
+                    }
+                });
+            }
+        });
+    
+        // 3. Sync Custom Added Tabs
+        onValue(customTabsRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                customTabsData = data;
+                let highestId = 9;
+                for (let id in data) {
+                    const numId = parseInt(id);
+                    if (numId > highestId) highestId = numId;
+                    
+                    // If the custom tab doesn't exist in the HTML yet, build it
+                    if (!document.querySelector(`.tab[data-category="${id}"]`)) {
+                        buildTabUI(id, data[id].color, tabNamesData[id] || 'New');
+                    }
+                }
+                tabCounter = highestId;
+            }
+        });
+    
+        function buildTabUI(id, hexColor, nameText) {
+            const newTab = document.createElement('div');
+            newTab.className = 'tab';
+            newTab.setAttribute('data-category', id);
+            newTab.style.backgroundColor = hexColor;
+            const editableState = isLocked ? "false" : "true";
+            newTab.innerHTML = `<span class="tab-name" contenteditable="${editableState}" spellcheck="false">${nameText}</span><button class="delete-btn">×</button>`;
+            // Insert before the lock button so it stays at the end
+            tabBar.insertBefore(newTab, lockBtn);
+        }
+    
+        // Unified Event Delegation: Handles clicks for ANY tab (even newly generated ones)
+        tabBar.addEventListener('click', (e) => {
+            const clickedTab = e.target.closest('.tab');
+            if (!clickedTab) return; // Ignored if they clicked the + button
+    
+            const clickedId = clickedTab.getAttribute('data-category');
+    
+            // Handle Delete Button Click
+            if (e.target.classList.contains('delete-btn')) {
+                e.stopPropagation(); // Prevent tab switch
+                if (isLocked) return; // Safety check: ignore clicks if locked
+                
+                // Remove from Firebase
+                remove(ref(db, 'notes/' + clickedId));
+                remove(ref(db, 'tabNames/' + clickedId));
+                remove(ref(db, 'customTabs/' + clickedId));
+                
+                // Remove from DOM
+                clickedTab.remove();
+                
+                // If deleted the active tab, switch to the next available one
+                if (currentCategory === clickedId) {
+                    const remainingTabs = document.querySelectorAll('.tab');
+                    if (remainingTabs.length > 0) {
+                        remainingTabs[0].click();
+                    } else {
+                        notepad.innerText = '';
+                        notepad.style.backgroundColor = '#050520';
+                        notepad.classList.remove('light-theme');
+                    }
+                }
+                return;
+            }
+            
+            // Only save & switch if clicking a different tab
+            if (currentCategory !== clickedId) {
+                // Save current
+                notesData[currentCategory] = notepad.innerText;
+                set(ref(db, 'notes/' + currentCategory), notepad.innerText);
+    
+                // Switch Visuals
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                clickedTab.classList.add('active');
+                
+                // Load New
+                currentCategory = clickedId;
+                notepad.innerText = notesData[currentCategory] || '';
+                applyNotepadTheme(clickedTab);
+            }
+            
+            // Focus notepad if they clicked the color block, but let them type if they clicked the text span
+            if (!e.target.classList.contains('tab-name')) {
+                notepad.focus();
+            }
+        });
+    
+        // Save Tab Names to Firebase when edited
+        let nameTimer;
+        tabBar.addEventListener('input', (e) => {
+            if (e.target.classList.contains('tab-name')) {
+                const tabId = e.target.closest('.tab').getAttribute('data-category');
+                const newTitle = e.target.innerText;
+                
+                tabNamesData[tabId] = newTitle;
+                clearTimeout(nameTimer);
+                nameTimer = setTimeout(() => {
+                    set(ref(db, 'tabNames/' + tabId), newTitle);
+                }, 600);
+            }
+        });
+    
+        // Add a brand new Tab
+        addTabBtn.addEventListener('click', () => {
+            tabCounter++;
+            const newId = tabCounter.toString();
+            
+            // Use Golden Angle to ensure distinct hues every time a tab is added
+            lastHue = (lastHue + 137.5) % 360;
+            const distinctColor = `hsl(${lastHue}, 75%, 55%)`;
+            
+            // Pushing to Firebase instantly creates it across all connected devices via the onValue listener
+            set(ref(db, 'customTabs/' + newId), { color: distinctColor });
+            set(ref(db, 'tabNames/' + newId), 'New');
+        });
+        
+        // Toggle Lock Mode (Hides delete buttons and disables renaming)
+        lockBtn.addEventListener('click', () => {
+            isLocked = !isLocked;
+            if (isLocked) {
+                lockBtn.innerText = '🔒';
+                tabBar.classList.add('locked');
+                document.querySelectorAll('.tab-name').forEach(name => name.setAttribute('contenteditable', 'false'));
+            } else {
+                lockBtn.innerText = '🔓';
+                tabBar.classList.remove('locked');
+                document.querySelectorAll('.tab-name').forEach(name => name.setAttribute('contenteditable', 'true'));
+            }
+        });
+    
+        // Smart Click: Allow clicking on empty background lines to instantly start typing there
+                notepad.addEventListener('click', (e) => {
+                    if (e.target === notepad) {
+                        var rect = notepad.getBoundingClientRect();
+                        var clickY = e.clientY - rect.top + notepad.scrollTop;
+                        var targetLineIndex = Math.floor(clickY / 50); // 50px is our exact line-height
+                        
+                        var currentLines = notepad.innerText.split('\n');
+                        
+                        // If clicked below the current text, fill the gap with invisible newlines
+                        if (targetLineIndex >= currentLines.length) {
+                            var linesToAdd = targetLineIndex - currentLines.length + 1;
+                            notepad.innerText += '\n'.repeat(linesToAdd);
+                            
+                            // Force the blinking text cursor to jump to the very end
+                            var range = document.createRange();
+                            var selection = window.getSelection();
+                            range.selectNodeContents(notepad);
+                            range.collapse(false);
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                            
+                            // Trigger the auto-save so Firebase knows about the new blank lines
+                            notepad.dispatchEvent(new Event('input'));
+                        }
+                    }
+                });
+        
+                // Save Notes to Firebase
+                let typingTimer;
+                notepad.addEventListener('input', () => {
+                    notesData[currentCategory] = notepad.innerText;
+            
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => {
+                set(ref(db, 'notes/' + currentCategory), notepad.innerText);
+            }, 800);
+        });
+    </script>
+</body>
+</html>
