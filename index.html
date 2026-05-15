@@ -271,7 +271,7 @@
     
         const notesRef = ref(db, 'notes');
         const namesRef = ref(db, 'tabNames');
-        const customTabsRef = ref(db, 'customTabs');
+        const customTabsRef = ref(db, 'noteTabs');
     
         onValue(notesRef, (snapshot) => {
             const data = snapshot.val();
@@ -342,7 +342,7 @@
                 // Remove from Firebase
                 remove(ref(db, 'notes/' + clickedId));
                 remove(ref(db, 'tabNames/' + clickedId));
-                remove(ref(db, 'customTabs/' + clickedId));
+                remove(ref(db, 'noteTabs/' + clickedId));
                 
                 // Remove from DOM
                 clickedTab.remove();
@@ -413,7 +413,7 @@
             lastHue = (lastHue + 137.5) % 360;
             const distinctColor = `hsl(${lastHue}, 75%, 55%)`;
             
-            set(ref(db, 'customTabs/' + newId), { color: distinctColor });
+            set(ref(db, 'noteTabs/' + newId), { color: distinctColor });
             set(ref(db, 'tabNames/' + newId), 'New');
         });
         
