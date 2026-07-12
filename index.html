@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>News Ticker</title>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getDatabase, ref, push, onValue, remove, update, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAYHA8Qw3Qw3Qzbyg8MtjrSKcJusNi4VaA6V4",
+    authDomain: "system-data-bf026.firebaseapp.com",
+    databaseURL: "https://system-data-bf026-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "system-data-bf026",
+    storageBucket: "system-data-bf026.firebasestorage.app",
+    messagingSenderId: "718302899022",
+    appId: "1:718302899022:web:f1675dbcc293e138c68c1f"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  window.__db = db;
+  window.__ref = ref;
+  window.__push = push;
+  window.__onValue = onValue;
+  window.__remove = remove;
+  window.__update = update;
+  window.__set = set;
+</script>
+<style>
+  html,body{margin:0;height:100%;font-family:'Segoe UI',Helvetica,sans-serif;background:#000;overflow:hidden}
+  .stack{position:fixed;top:0;left:0;right:0;bottom:calc(9.09vh + 28vh);overflow-y:auto;display:flex;flex-direction:column-reverse;transition:bottom 0.3s}
+   body.kb-hidden .stack{bottom:9.09vh}
+   .bar{height:60px;width:100%;color:#fff;overflow:hidden;display:flex;align-items:center;justify-content:center;border-bottom:1px solid #000;touch-action:pan-y;position:relative}
+  .bar.dragging{opacity:.6;outline:3px dashed #fff;outline-offset:-3px;z-index:5}
+  .track{white-space:nowrap;font-size:32px;font-weight:700;letter-spacing:.5px;animation:pulse 0.8s ease-in-out infinite;pointer-events:none}
+  @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.35);opacity:.55}}
+       form{position:fixed;bottom:28vh;left:0;width:100%;height:9.09vh;background:#1a1a1a;display:flex;align-items:center;padding:0 10px;box-sizing:border-box;gap:8px;z-index:2;transition:bottom 0.3s}
+       body.kb-hidden form{bottom:0}
+      #noteBox{flex:1;padding:8px;height:70%;font-size:min(4.5vh,4vw);box-sizing:border-box;font-family:inherit;background:#fff;color:#000;border-radius:4px;display:flex;align-items:center;overflow:hidden;white-space:nowrap}
+    #noteInput{width:100%;height:100%;border:none;outline:none;background:transparent;font-family:inherit;font-size:inherit;color:inherit;padding:0;margin:0}
+    #noteInput:disabled{background:transparent;color:#000;opacity:1;-webkit-text-fill-color:#000}
+    form button{padding:0 16px;height:70%;font-size:min(4.5vh,4vw);font-family:inherit}
+      #kb{position:fixed;bottom:0;left:0;width:100%;height:28vh;background:#1e2124;box-sizing:border-box;padding:4px 3px;display:flex;flex-direction:column;gap:4px;z-index:2;touch-action:none;transition:transform 0.3s}
+      body.kb-hidden #kb{transform:translateY(100%)}
+      .krow{display:flex;flex:1;gap:4px;justify-content:center}
+  .krow.indent{padding:0 3vw}
+  .key{flex:1;background:#3a3d42;color:#fff;border:none;border-radius:5px;font-size:min(2vh,3.4vw);font-family:inherit;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;user-select:none;transition:none;box-shadow:0 1px 0 rgba(0,0,0,.3)}
+  .key.pressed{background:#5a5e64;transform:scale(0.92)}
+  .key.func{background:#2b2e33;flex:1.5;font-size:min(1.8vh,2.8vw)}
+  .key.func.pressed{background:#45484d}
+  .key.wide{flex:1.5}
+  .key.space{flex:8}
+  .key.go{background:#3a86ff;flex:1.6}
+  .key.go.pressed{background:#5a9aff}
+     #lockBtn, #kbBtn{border-radius:4px;border:none;background:#444;color:#fff;-webkit-tap-highlight-color:transparent}
+      #lockBtn.locked{background:#e63946}
+      .actions{position:absolute;right:10px;display:flex;gap:8px;z-index:10;opacity:0;transition:opacity 0.2s}
+      .bar:hover .actions, .bar:focus-within .actions, .actions:active{opacity:1}
+      .btn-action{background:rgba(0,0,0,0.5);color:#fff;border:none;padding:6px 12px;border-radius:4px;font-size:16px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+     </style>
+</head>
+<body>
+
+<div class="stack" id="stack"></div>
+
+<form onsubmit="addNote(event)">
+  <div id="noteBox"><input type="text" id="noteInput" autocomplete="off" /></div>
+  <button id="addBtn">Add</button>
+  <button type="button" id="kbBtn" onclick="toggleKb()" title="Toggle Keyboard">⌨️</button>
+  <button type="button" id="lockBtn" onclick="toggleLock()">🔓</button>
+</form>
+
+<div id="kb"></div>
+
+<script>
+window.addEventListener('load', initTicker);
+function initTicker(){
+  if(!window.__db){ setTimeout(initTicker, 50); return; }
+
+  const palette = ["#e63946","#1d3557","#2a9d8f","#6a4c93","#e76f51","#264653","#8338ec","#d90429","#3a86ff","#fb8500"];
+  let rows = []; // {key, text, color, order}
+  let shift = false;
+  let noteVal = "";
+  let touchX = 0, touchY = 0;
+   let dragIndex = -1, holdTimer = null, dragging = false;
+   let locked = false;
+   let editingKey = null;
+
+  const db = window.__db, dbRef = window.__ref, dbPush = window.__push,
+        dbOnValue = window.__onValue, dbRemove = window.__remove,
+        dbUpdate = window.__update, dbSet = window.__set;
+  const notesRef = dbRef(db, "ticker_notes");
+  
+    function updateBox(){
+          const inp = document.getElementById('noteInput');
+          if(inp && inp.value !== noteVal) inp.value = noteVal;
+        }
+     
+        // Sync typing directly from the input back to our noteVal string
+        const noteInputEl = document.getElementById('noteInput');
+        if(noteInputEl){
+          noteInputEl.addEventListener('input', (e) => { noteVal = e.target.value; });
+        }
+    
+      function render(){
+     document.getElementById('stack').innerHTML = rows.map((r,i)=>`
+       <div class="bar" data-i="${i}" style="background:${r.color}"
+            onpointerdown="touchStart(event,${i})" onpointermove="touchMove(event,${i})" onpointerup="touchEnd(event,${i})" onpointercancel="touchEnd(event,${i})">
+         <div class="track" id="tk${i}">${r.text}</div>
+         <div class="actions">
+           <button type="button" class="btn-action" onpointerdown="event.stopPropagation()" onclick="editNote(${i})">Edit</button>
+           <button type="button" class="btn-action" onpointerdown="event.stopPropagation()" onclick="deleteNote('${r.key}')">Del</button>
+         </div>
+       </div>`).join('');
+   }
+
+  // Live sync: rebuild rows[] whenever Firebase data changes
+   dbOnValue(notesRef, (snapshot) => {
+     const data = snapshot.val();
+     if(!data){ rows = []; render(); return; }
+     rows = Object.keys(data).map(key => {
+       const val = data[key];
+       // Handle older plain string notes or objects missing properties
+       if (typeof val === 'object' && val !== null) {
+         return { key, text: val.text || val.note || 'Empty', color: val.color || '#1d3557', order: val.order ?? 0 };
+       } else {
+         return { key, text: String(val), color: '#1d3557', order: 0 };
+       }
+     }).sort((a,b) => a.order - b.order);
+     render();
+   });
+
+  function addNote(e){
+     e.preventDefault();
+     if(locked || !noteVal.trim()) return;
+     
+     if(editingKey){
+       dbUpdate(dbRef(db, `ticker_notes/${editingKey}`), { text: noteVal.trim() });
+       editingKey = null;
+       document.getElementById('addBtn').textContent = "Add";
+     } else {
+       const order = rows.length ? Math.max(...rows.map(r=>r.order ?? 0)) + 1 : 0;
+       const color = palette[rows.length % palette.length];
+       dbPush(notesRef, { text: noteVal.trim(), color, order });
+     }
+     noteVal = "";
+     updateBox();
+   }
+
+  function touchStart(e,i){
+       if(locked) return;
+       e.target.setPointerCapture(e.pointerId);
+       touchX = e.clientX;
+       touchY = e.clientY;
+       dragging = false;
+    holdTimer = setTimeout(()=>{
+      dragging = true;
+      dragIndex = i;
+      document.querySelector(`.bar[data-i="${i}"]`).classList.add('dragging');
+      if(navigator.vibrate) navigator.vibrate(30);
+    }, 400);
+  }
+
+  function touchMove(e,i){
+     const dx = e.clientX - touchX;
+     const dy = e.clientY - touchY;
+     if(!dragging){
+       if(Math.abs(dx) > 10 || Math.abs(dy) > 10) clearTimeout(holdTimer);
+     } else {
+       const stackEl = document.getElementById('stack');
+       const bars = [...stackEl.children];
+       const touchYAbs = e.clientY;
+       for(const b of bars){
+        const rect = b.getBoundingClientRect();
+        if(touchYAbs > rect.top && touchYAbs < rect.bottom){
+          const overIndex = +b.dataset.i;
+          if(overIndex !== dragIndex){
+            const moved = rows.splice(dragIndex,1)[0];
+            rows.splice(overIndex,0,moved);
+            dragIndex = overIndex;
+            render();
+            document.querySelector(`.bar[data-i="${dragIndex}"]`).classList.add('dragging');
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  function touchEnd(e,i){
+     clearTimeout(holdTimer);
+     if(e.target.hasPointerCapture && e.target.hasPointerCapture(e.pointerId)) {
+       e.target.releasePointerCapture(e.pointerId);
+     }
+     if(dragging){
+       dragging = false;
+       dragIndex = -1;
+       // Persist new order to Firebase
+       const updates = {};
+       rows.forEach((r, idx) => { updates[`${r.key}/order`] = idx; });
+       dbUpdate(notesRef, updates);
+     }
+   }
+
+  function toggleLock(){
+         locked = !locked;
+         const btn = document.getElementById('lockBtn');
+         btn.textContent = locked ? '🔒' : '🔓';
+         btn.classList.toggle('locked', locked);
+         document.getElementById('noteInput').disabled = locked;
+       }
+  
+    let kbHidden = false;
+    function toggleKb(){
+      kbHidden = !kbHidden;
+      document.body.classList.toggle('kb-hidden', kbHidden);
+      const btn = document.getElementById('kbBtn');
+      btn.style.opacity = kbHidden ? '0.5' : '1';
+    }
+
+  const numberRow = ["1","2","3","4","5","6","7","8","9","0"];
+  const letterRows = [
+    ["q","w","e","r","t","y","u","i","o","p"],
+    ["a","s","d","f","g","h","j","k","l"],
+    ["SHIFT","z","x","c","v","b","n","m","BACK"]
+  ];
+  const symbolRows = [
+    ["@","#","$","_","&","-","+","(",")","/"],
+    ["*","\"","'",":",";","!","?","BACK"]
+  ];
+  let numMode = false;
+
+  function keyLabel(k){
+    if(k==="SHIFT") return "⇧";
+    if(k==="BACK") return "⌫";
+    if(k==="SPACE") return "";
+    if(k==="GO") return "Add";
+    if(k==="123") return "?123";
+    if(k==="ABC") return "ABC";
+    return shift ? k.toUpperCase() : k;
+  }
+  function keyClass(k){
+    if(k==="SPACE") return "key space";
+    if(k==="GO") return "key go";
+    if(k==="SHIFT"||k==="BACK"||k==="123"||k==="ABC") return "key func";
+    return "key";
+  }
+
+  function buildKb(){
+    const midRows = numMode ? symbolRows : letterRows;
+    const bottomRow = numMode
+      ? ["ABC",",","SPACE",".","GO"]
+      : ["123",",","SPACE",".","GO"];
+    const allRows = [numberRow, ...midRows, bottomRow];
+    document.getElementById('kb').innerHTML = allRows.map((row,ri)=>
+      `<div class="krow${ri===2?' indent':''}">${row.map(k=>`<button type="button" class="${keyClass(k)}" data-k="${k}">${keyLabel(k)}</button>`).join('')}</div>`
+    ).join('');
+    document.querySelectorAll('#kb button').forEach(btn=>{
+      let firedByTouch = false;
+      btn.addEventListener('touchstart', e=>{
+        e.preventDefault();
+        firedByTouch = true;
+        btn.classList.add('pressed');
+        if(navigator.vibrate) navigator.vibrate(8);
+        pressKey(btn.dataset.k);
+      }, {passive:false});
+      btn.addEventListener('touchend', e=>{
+        e.preventDefault();
+        btn.classList.remove('pressed');
+      }, {passive:false});
+      btn.addEventListener('touchcancel', ()=> btn.classList.remove('pressed'));
+      btn.addEventListener('click', ()=>{
+        if(firedByTouch){ firedByTouch=false; return; }
+        pressKey(btn.dataset.k);
+      });
+    });
+  }
+
+  function pressKey(k){
+       if(locked) return;
+       const inp = document.getElementById('noteInput');
+       if(inp) inp.focus();
+       let start = inp ? (inp.selectionStart || 0) : noteVal.length;
+       let end = inp ? (inp.selectionEnd || 0) : noteVal.length;
+  
+       if(k==="SHIFT"){ shift=!shift; buildKb(); return; }
+       if(k==="123"){ numMode=true; buildKb(); return; }
+       if(k==="ABC"){ numMode=false; buildKb(); return; }
+       
+       if(k==="BACK"){ 
+         if(start > 0 && start === end){
+           noteVal = noteVal.slice(0, start - 1) + noteVal.slice(end);
+           updateBox();
+           if(inp) inp.setSelectionRange(start - 1, start - 1);
+         } else if (start !== end) {
+           noteVal = noteVal.slice(0, start) + noteVal.slice(end);
+           updateBox();
+           if(inp) inp.setSelectionRange(start, start);
+         }
+         return; 
+       }
+       
+       if(k==="GO"){ addNote({preventDefault:()=>{}}); return; }
+       
+       let char = k === "SPACE" ? " " : (shift ? k.toUpperCase() : k);
+       noteVal = noteVal.slice(0, start) + char + noteVal.slice(end);
+       updateBox();
+       if(inp) inp.setSelectionRange(start + 1, start + 1);
+    }
+  buildKb();
+
+  // Expose functions referenced by inline HTML attributes
+  window.addNote = addNote;
+  window.touchStart = touchStart;
+  window.touchMove = touchMove;
+    window.touchEnd = touchEnd;
+      window.pressKey = pressKey;
+      window.toggleLock = toggleLock;
+      window.toggleKb = toggleKb;
+      window.editNote = function(i){
+          if(locked) return;
+          const r = rows[i];
+          editingKey = r.key;
+          noteVal = r.text;
+          document.getElementById('addBtn').textContent = "Save";
+          updateBox();
+          document.getElementById('noteInput').focus();
+        };
+    window.deleteNote = function(key){
+          if(locked) return;
+          dbRemove(dbRef(db, `ticker_notes/${key}`));
+        };
+  
+    // Desktop Hardware Keyboard Support
+        window.addEventListener('keydown', (e) => {
+          if(locked) return;
+          if(e.ctrlKey || e.metaKey || e.altKey) return;
+          if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+     
+          // Automatically put the cursor in the box so native typing takes over seamlessly
+          const inp = document.getElementById('noteInput');
+          if(inp) inp.focus();
+    
+          if(e.key === 'Enter'){
+            e.preventDefault();
+            pressKey("GO");
+          }
+        });
+  }
+  </script>
+</body>
+</html>
