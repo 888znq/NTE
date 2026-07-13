@@ -29,19 +29,30 @@
   window.__set = set;
 </script>
 <style>
+  :root{--formH:13.59vh;--kbH:28vh}
   html,body{margin:0;height:100%;font-family:'Segoe UI',Helvetica,sans-serif;background:#000;overflow:hidden}
-  .stack{position:fixed;top:0;left:0;right:0;bottom:calc(9.09vh + 28vh);overflow-y:auto;display:flex;flex-direction:column-reverse;transition:bottom 0.3s}
-   body.kb-hidden .stack{bottom:9.09vh}
-   .bar{height:60px;width:100%;color:#fff;overflow:hidden;display:flex;align-items:center;justify-content:center;border-bottom:1px solid #000;touch-action:pan-y;position:relative}
-  .bar.dragging{opacity:.6;outline:3px dashed #fff;outline-offset:-3px;z-index:5}
-  .track{white-space:nowrap;font-size:32px;font-weight:700;letter-spacing:.5px;animation:pulse 0.8s ease-in-out infinite;pointer-events:none}
-  @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.35);opacity:.55}}
-       form{position:fixed;bottom:28vh;left:0;width:100%;height:9.09vh;background:#1a1a1a;display:flex;align-items:center;padding:0 10px;box-sizing:border-box;gap:8px;z-index:2;transition:bottom 0.3s}
+  .stack{position:fixed;top:0;left:0;right:0;bottom:calc(var(--formH) + var(--kbH));overflow-y:auto;display:flex;flex-flow:row wrap;align-content:flex-start;gap:10px;padding:10px;box-sizing:border-box;transition:bottom 0.3s}
+     body.kb-hidden .stack{bottom:var(--formH)}
+     .bar{width:calc(33.333% - 7px);height:150px;color:#fff;border-radius:14px;touch-action:pan-y;position:relative;padding:12px 14px;box-sizing:border-box;box-shadow:0 3px 8px rgba(0,0,0,.5)}
+       .bar.dragging{opacity:.6;outline:3px dashed #fff;outline-offset:-3px;z-index:5}
+       .boxInner{display:flex;flex-direction:column;gap:6px;height:100%;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
+         .boxInner::-webkit-scrollbar{display:none;width:0;height:0}
+         .noteLine{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-shrink:0}
+    .track{white-space:normal;word-break:break-word;font-size:15px;font-weight:700;letter-spacing:.3px;animation:pulse 0.8s ease-in-out infinite;pointer-events:none;flex:1}
+      .boxHead{display:block;width:100%;font-family:inherit;color:#fff;background:transparent;border:none;font-size:14px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;padding:0 0 4px 0;border-bottom:1px solid rgba(255,255,255,.35);outline:none;flex-shrink:0;box-sizing:border-box}
+        .boxHead::placeholder{color:#fff;opacity:.6;text-transform:none}
+        .boxHead:focus{border-bottom-color:#fff}
+    @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.06);opacity:.85}}
+       form{position:fixed;bottom:28vh;left:0;width:100%;height:var(--formH);background:#1a1a1a;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:6px 10px;box-sizing:border-box;z-index:2;transition:bottom 0.3s}
        body.kb-hidden form{bottom:0}
+      #colorPicker{height:4.5vh;display:flex;align-items:center;gap:8px;overflow-x:auto}
+      .swatch{width:28px;height:28px;min-width:28px;border-radius:50%;border:3px solid transparent;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+      .swatch.selected{border-color:#fff}
+      .noteRow{height:9.09vh;display:flex;align-items:center;gap:8px}
       #noteBox{flex:1;padding:8px;height:70%;font-size:min(4.5vh,4vw);box-sizing:border-box;font-family:inherit;background:#fff;color:#000;border-radius:4px;display:flex;align-items:center;overflow:hidden;white-space:nowrap}
     #noteInput{width:100%;height:100%;border:none;outline:none;background:transparent;font-family:inherit;font-size:inherit;color:inherit;padding:0;margin:0}
     #noteInput:disabled{background:transparent;color:#000;opacity:1;-webkit-text-fill-color:#000}
-    form button{padding:0 16px;height:70%;font-size:min(4.5vh,4vw);font-family:inherit}
+    .noteRow button{padding:0 16px;height:70%;font-size:min(4.5vh,4vw);font-family:inherit}
       #kb{position:fixed;bottom:0;left:0;width:100%;height:28vh;background:#1e2124;box-sizing:border-box;padding:4px 3px;display:flex;flex-direction:column;gap:4px;z-index:2;touch-action:none;transition:transform 0.3s}
       body.kb-hidden #kb{transform:translateY(100%)}
       .krow{display:flex;flex:1;gap:4px;justify-content:center}
@@ -56,8 +67,8 @@
   .key.go.pressed{background:#5a9aff}
      #lockBtn, #kbBtn{border-radius:4px;border:none;background:#444;color:#fff;-webkit-tap-highlight-color:transparent}
       #lockBtn.locked{background:#e63946}
-      .actions{position:absolute;right:10px;display:flex;gap:8px;z-index:10;opacity:0;transition:opacity 0.2s}
-      .bar:hover .actions, .bar:focus-within .actions, .actions:active{opacity:1}
+      .lineActions{display:flex;gap:6px;opacity:0;transition:opacity .2s;flex-shrink:0}
+            .noteLine:hover .lineActions, .noteLine:focus-within .lineActions{opacity:1}
       .btn-action{background:rgba(0,0,0,0.5);color:#fff;border:none;padding:6px 12px;border-radius:4px;font-size:16px;cursor:pointer;-webkit-tap-highlight-color:transparent}
      </style>
 </head>
@@ -66,10 +77,13 @@
 <div class="stack" id="stack"></div>
 
 <form onsubmit="addNote(event)">
-  <div id="noteBox"><input type="text" id="noteInput" autocomplete="off" /></div>
-  <button id="addBtn">Add</button>
-  <button type="button" id="kbBtn" onclick="toggleKb()" title="Toggle Keyboard">⌨️</button>
-  <button type="button" id="lockBtn" onclick="toggleLock()">🔓</button>
+  <div id="colorPicker"></div>
+  <div class="noteRow">
+    <div id="noteBox"><input type="text" id="noteInput" autocomplete="off" /></div>
+    <button id="addBtn">Add</button>
+    <button type="button" id="kbBtn" onclick="toggleKb()" title="Toggle Keyboard">⌨️</button>
+    <button type="button" id="lockBtn" onclick="toggleLock()">🔓</button>
+  </div>
 </form>
 
 <div id="kb"></div>
@@ -80,9 +94,12 @@ function initTicker(){
   if(!window.__db){ setTimeout(initTicker, 50); return; }
 
   const palette = ["#e63946","#1d3557","#2a9d8f","#6a4c93","#e76f51","#264653","#8338ec","#d90429","#3a86ff","#fb8500"];
-  let rows = []; // {key, text, color, order}
-  let shift = false;
-  let noteVal = "";
+    let rows = []; // {key, text, color, order}
+        let groupsCache = [];
+        let titles = {};
+        let shift = false;
+        let noteVal = "";
+        let selectedColor = palette[0];
   let touchX = 0, touchY = 0;
    let dragIndex = -1, holdTimer = null, dragging = false;
    let locked = false;
@@ -92,6 +109,7 @@ function initTicker(){
         dbOnValue = window.__onValue, dbRemove = window.__remove,
         dbUpdate = window.__update, dbSet = window.__set;
   const notesRef = dbRef(db, "ticker_notes");
+    const titlesRef = dbRef(db, "ticker_titles");
   
     function updateBox(){
           const inp = document.getElementById('noteInput');
@@ -104,33 +122,66 @@ function initTicker(){
           noteInputEl.addEventListener('input', (e) => { noteVal = e.target.value; });
         }
     
-      function render(){
-     document.getElementById('stack').innerHTML = rows.map((r,i)=>`
-       <div class="bar" data-i="${i}" style="background:${r.color}"
-            onpointerdown="touchStart(event,${i})" onpointermove="touchMove(event,${i})" onpointerup="touchEnd(event,${i})" onpointercancel="touchEnd(event,${i})">
-         <div class="track" id="tk${i}">${r.text}</div>
-         <div class="actions">
-           <button type="button" class="btn-action" onpointerdown="event.stopPropagation()" onclick="editNote(${i})">Edit</button>
-           <button type="button" class="btn-action" onpointerdown="event.stopPropagation()" onclick="deleteNote('${r.key}')">Del</button>
-         </div>
-       </div>`).join('');
-   }
+      function groupRows(){
+              const map = new Map();
+              rows.forEach(r => {
+                if(!map.has(r.color)) map.set(r.color, []);
+                map.get(r.color).push(r);
+              });
+              return [...map.entries()].map(([color, items]) => {
+                const sorted = items.slice().sort((a,b)=>a.order-b.order);
+                return { color, items: sorted, order: Math.min(...sorted.map(it=>it.order)) };
+              }).sort((a,b)=>a.order-b.order);
+            }
+      
+            function renderGroups(groups){
+                    document.getElementById('stack').innerHTML = groups.map((g,i)=>`
+                      <div class="bar" data-i="${i}" style="background:${g.color}"
+                           onpointerdown="touchStart(event,${i})" onpointermove="touchMove(event,${i})" onpointerup="touchEnd(event,${i})" onpointercancel="touchEnd(event,${i})">
+                        <input type="text" class="boxHead" spellcheck="false" data-color="${g.color}" placeholder="Untitled"
+                                         value="${(titles[g.color.replace('#','')] || '').replace(/"/g,'&quot;')}"
+                                         onpointerdown="event.stopPropagation()" onclick="event.stopPropagation()"
+                                         onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+                                         onblur="saveTitle(this)" />
+                        <div class="boxInner">
+                          ${g.items.map(it=>`
+                            <div class="noteLine">
+                              <span class="track">${it.text}</span>
+                              <span class="lineActions">
+                                <button type="button" class="btn-action" onpointerdown="event.stopPropagation()" onclick="editNote('${it.key}')">Edit</button>
+                                <button type="button" class="btn-action" onpointerdown="event.stopPropagation()" onclick="deleteNote('${it.key}')">Del</button>
+                              </span>
+                            </div>`).join('')}
+                        </div>
+                      </div>`).join('');
+                  }
+      
+            function render(){
+              groupsCache = groupRows();
+              renderGroups(groupsCache);
+            }
 
   // Live sync: rebuild rows[] whenever Firebase data changes
-   dbOnValue(notesRef, (snapshot) => {
-     const data = snapshot.val();
-     if(!data){ rows = []; render(); return; }
-     rows = Object.keys(data).map(key => {
-       const val = data[key];
-       // Handle older plain string notes or objects missing properties
-       if (typeof val === 'object' && val !== null) {
-         return { key, text: val.text || val.note || 'Empty', color: val.color || '#1d3557', order: val.order ?? 0 };
-       } else {
-         return { key, text: String(val), color: '#1d3557', order: 0 };
-       }
-     }).sort((a,b) => a.order - b.order);
-     render();
-   });
+     dbOnValue(notesRef, (snapshot) => {
+       const data = snapshot.val();
+       if(!data){ rows = []; render(); return; }
+       rows = Object.keys(data).map(key => {
+         const val = data[key];
+         // Handle older plain string notes or objects missing properties
+         if (typeof val === 'object' && val !== null) {
+           return { key, text: val.text || val.note || 'Empty', color: val.color || '#1d3557', order: val.order ?? 0 };
+         } else {
+           return { key, text: String(val), color: '#1d3557', order: 0 };
+         }
+       }).sort((a,b) => a.order - b.order);
+       render();
+     });
+  
+    // Live sync: box headings per color
+    dbOnValue(titlesRef, (snapshot) => {
+      titles = snapshot.val() || {};
+      render();
+    });
 
   function addNote(e){
      e.preventDefault();
@@ -141,10 +192,9 @@ function initTicker(){
        editingKey = null;
        document.getElementById('addBtn').textContent = "Add";
      } else {
-       const order = rows.length ? Math.max(...rows.map(r=>r.order ?? 0)) + 1 : 0;
-       const color = palette[rows.length % palette.length];
-       dbPush(notesRef, { text: noteVal.trim(), color, order });
-     }
+            const order = rows.length ? Math.max(...rows.map(r=>r.order ?? 0)) + 1 : 0;
+            dbPush(notesRef, { text: noteVal.trim(), color: selectedColor, order });
+          }
      noteVal = "";
      updateBox();
    }
@@ -164,30 +214,30 @@ function initTicker(){
   }
 
   function touchMove(e,i){
-     const dx = e.clientX - touchX;
-     const dy = e.clientY - touchY;
-     if(!dragging){
-       if(Math.abs(dx) > 10 || Math.abs(dy) > 10) clearTimeout(holdTimer);
-     } else {
-       const stackEl = document.getElementById('stack');
-       const bars = [...stackEl.children];
-       const touchYAbs = e.clientY;
-       for(const b of bars){
-        const rect = b.getBoundingClientRect();
-        if(touchYAbs > rect.top && touchYAbs < rect.bottom){
-          const overIndex = +b.dataset.i;
-          if(overIndex !== dragIndex){
-            const moved = rows.splice(dragIndex,1)[0];
-            rows.splice(overIndex,0,moved);
-            dragIndex = overIndex;
-            render();
-            document.querySelector(`.bar[data-i="${dragIndex}"]`).classList.add('dragging');
+       const dx = e.clientX - touchX;
+       const dy = e.clientY - touchY;
+       if(!dragging){
+         if(Math.abs(dx) > 10 || Math.abs(dy) > 10) clearTimeout(holdTimer);
+       } else {
+         const stackEl = document.getElementById('stack');
+         const bars = [...stackEl.children];
+         const touchYAbs = e.clientY;
+         for(const b of bars){
+          const rect = b.getBoundingClientRect();
+          if(touchYAbs > rect.top && touchYAbs < rect.bottom){
+            const overIndex = +b.dataset.i;
+            if(overIndex !== dragIndex){
+              const moved = groupsCache.splice(dragIndex,1)[0];
+              groupsCache.splice(overIndex,0,moved);
+              dragIndex = overIndex;
+              renderGroups(groupsCache);
+              document.querySelector(`.bar[data-i="${dragIndex}"]`).classList.add('dragging');
+            }
+            break;
           }
-          break;
         }
       }
     }
-  }
 
   function touchEnd(e,i){
      clearTimeout(holdTimer);
@@ -195,14 +245,17 @@ function initTicker(){
        e.target.releasePointerCapture(e.pointerId);
      }
      if(dragging){
-       dragging = false;
-       dragIndex = -1;
-       // Persist new order to Firebase
-       const updates = {};
-       rows.forEach((r, idx) => { updates[`${r.key}/order`] = idx; });
-       dbUpdate(notesRef, updates);
-     }
-   }
+            dragging = false;
+            dragIndex = -1;
+            // Persist new box order to Firebase (flatten grouped boxes to a sequential order)
+            const updates = {};
+            let idx = 0;
+            groupsCache.forEach(g => {
+              g.items.forEach(it => { updates[`${it.key}/order`] = idx++; });
+            });
+            dbUpdate(notesRef, updates);
+          }
+        }
 
   function toggleLock(){
          locked = !locked;
@@ -309,9 +362,22 @@ function initTicker(){
        updateBox();
        if(inp) inp.setSelectionRange(start + 1, start + 1);
     }
-  buildKb();
-
-  // Expose functions referenced by inline HTML attributes
+  function buildColorPicker(){
+      const picker = document.getElementById('colorPicker');
+      if(!picker) return;
+      picker.innerHTML = palette.map(c=>`<button type="button" class="swatch${c===selectedColor?' selected':''}" style="background:${c}" data-c="${c}"></button>`).join('');
+      picker.querySelectorAll('.swatch').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          selectedColor = btn.dataset.c;
+          picker.querySelectorAll('.swatch').forEach(s=>s.classList.remove('selected'));
+          btn.classList.add('selected');
+        });
+      });
+    }
+    buildColorPicker();
+    buildKb();
+  
+    // Expose functions referenced by inline HTML attributes
   window.addNote = addNote;
   window.touchStart = touchStart;
   window.touchMove = touchMove;
@@ -319,19 +385,27 @@ function initTicker(){
       window.pressKey = pressKey;
       window.toggleLock = toggleLock;
       window.toggleKb = toggleKb;
-      window.editNote = function(i){
-          if(locked) return;
-          const r = rows[i];
-          editingKey = r.key;
-          noteVal = r.text;
-          document.getElementById('addBtn').textContent = "Save";
-          updateBox();
-          document.getElementById('noteInput').focus();
-        };
+      window.editNote = function(key){
+                      if(locked) return;
+                      const r = rows.find(rr => rr.key === key);
+                      if(!r) return;
+                      editingKey = r.key;
+                      noteVal = r.text;
+                      selectedColor = r.color;
+                      buildColorPicker();
+                      document.getElementById('addBtn').textContent = "Save";
+                      updateBox();
+                      document.getElementById('noteInput').focus();
+                    };
     window.deleteNote = function(key){
-          if(locked) return;
-          dbRemove(dbRef(db, `ticker_notes/${key}`));
-        };
+              if(locked) return;
+              dbRemove(dbRef(db, `ticker_notes/${key}`));
+            };
+        window.saveTitle = function(el){
+                  const key = el.dataset.color.replace('#','');
+                  const text = el.value.trim();
+                  dbSet(dbRef(db, `ticker_titles/${key}`), text);
+                };
   
     // Desktop Hardware Keyboard Support
         window.addEventListener('keydown', (e) => {
