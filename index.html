@@ -31,9 +31,9 @@
 <style>
   :root{--formH:13.59vh;--kbH:28vh}
   html,body{margin:0;height:100%;font-family:'Segoe UI',Helvetica,sans-serif;background:#000;overflow:hidden}
-  .stack{position:fixed;top:0;left:0;right:0;bottom:calc(var(--formH) + var(--kbH));overflow-y:auto;display:flex;flex-flow:row wrap;align-content:flex-start;gap:10px;padding:10px;box-sizing:border-box;transition:bottom 0.3s}
-     body.kb-hidden .stack{bottom:var(--formH)}
-     .bar{width:calc(33.333% - 7px);height:150px;color:#fff;border-radius:14px;touch-action:pan-y;position:relative;padding:12px 14px;box-sizing:border-box;box-shadow:0 3px 8px rgba(0,0,0,.5)}
+  .stack{position:fixed;top:0;left:0;right:0;bottom:calc(var(--formH) + var(--kbH));overflow-y:auto;display:block;padding:10px;box-sizing:border-box;transition:bottom 0.3s}
+       body.kb-hidden .stack{bottom:var(--formH)}
+       .bar{width:100%;height:100%;color:#fff;border-radius:14px;position:relative;padding:12px 14px;box-sizing:border-box;box-shadow:0 3px 8px rgba(0,0,0,.5)}
        .bar.dragging{opacity:.6;outline:3px dashed #fff;outline-offset:-3px;z-index:5}
        .boxInner{display:flex;flex-direction:column;gap:6px;height:100%;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
          .boxInner::-webkit-scrollbar{display:none;width:0;height:0}
@@ -95,11 +95,12 @@ function initTicker(){
 
   const palette = ["#e63946","#1d3557","#2a9d8f","#6a4c93","#e76f51","#264653","#8338ec","#d90429","#3a86ff","#fb8500"];
     let rows = []; // {key, text, color, order}
-        let groupsCache = [];
-        let titles = {};
-        let shift = false;
-        let noteVal = "";
-        let selectedColor = palette[0];
+            let groupsCache = [];
+            let titles = {};
+            let shift = false;
+            let noteVal = "";
+            let selectedColor = palette[0];
+            let activeColor = null;
   let touchX = 0, touchY = 0;
    let dragIndex = -1, holdTimer = null, dragging = false;
    let locked = false;
@@ -135,31 +136,34 @@ function initTicker(){
             }
       
             function renderGroups(groups){
-                    document.getElementById('stack').innerHTML = groups.map((g,i)=>`
-                      <div class="bar" data-i="${i}" style="background:${g.color}"
-                           onpointerdown="touchStart(event,${i})" onpointermove="touchMove(event,${i})" onpointerup="touchEnd(event,${i})" onpointercancel="touchEnd(event,${i})">
-                        <input type="text" class="boxHead" spellcheck="false" data-color="${g.color}" placeholder="Untitled"
-                                         value="${(titles[g.color.replace('#','')] || '').replace(/"/g,'&quot;')}"
-                                         onpointerdown="event.stopPropagation()" onclick="event.stopPropagation()"
-                                         onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
-                                         onblur="saveTitle(this)" />
-                        <div class="boxInner">
-                          ${g.items.map(it=>`
-                            <div class="noteLine">
-                              <span class="track">${it.text}</span>
-                              <span class="lineActions">
-                                <button type="button" class="btn-action" onpointerdown="event.stopPropagation()" onclick="editNote('${it.key}')">Edit</button>
-                                <button type="button" class="btn-action" onpointerdown="event.stopPropagation()" onclick="deleteNote('${it.key}')">Del</button>
-                              </span>
-                            </div>`).join('')}
-                        </div>
-                      </div>`).join('');
-                  }
+                                const g = groups.find(gr => gr.color === activeColor) || { color: activeColor || palette[0], items: [] };
+                                document.getElementById('stack').innerHTML = `
+                                  <div class="bar" style="background:${g.color}">
+                                    <input type="text" class="boxHead" spellcheck="false" data-color="${g.color}" placeholder="Untitled"
+                                                     value="${(titles[g.color.replace('#','')] || '').replace(/"/g,'&quot;')}"
+                                                     onpointerdown="event.stopPropagation()" onclick="event.stopPropagation()"
+                                                     onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+                                                     onblur="saveTitle(this)" />
+                                    <div class="boxInner">
+                                      ${g.items.map(it=>`
+                                        <div class="noteLine">
+                                          <span class="track">${it.text}</span>
+                                          <span class="lineActions">
+                                            <button type="button" class="btn-action" onpointerdown="event.stopPropagation()" onclick="editNote('${it.key}')">Edit</button>
+                                            <button type="button" class="btn-action" onpointerdown="event.stopPropagation()" onclick="deleteNote('${it.key}')">Del</button>
+                                          </span>
+                                        </div>`).join('')}
+                                    </div>
+                                  </div>`;
+                              }
       
             function render(){
-              groupsCache = groupRows();
-              renderGroups(groupsCache);
-            }
+                          groupsCache = groupRows();
+                          if(activeColor === null){
+                            activeColor = groupsCache.length ? groupsCache[0].color : selectedColor;
+                          }
+                          renderGroups(groupsCache);
+                        }
 
   // Live sync: rebuild rows[] whenever Firebase data changes
      dbOnValue(notesRef, (snapshot) => {
@@ -184,20 +188,21 @@ function initTicker(){
     });
 
   function addNote(e){
-     e.preventDefault();
-     if(locked || !noteVal.trim()) return;
-     
-     if(editingKey){
-       dbUpdate(dbRef(db, `ticker_notes/${editingKey}`), { text: noteVal.trim() });
-       editingKey = null;
-       document.getElementById('addBtn').textContent = "Add";
-     } else {
-            const order = rows.length ? Math.max(...rows.map(r=>r.order ?? 0)) + 1 : 0;
-            dbPush(notesRef, { text: noteVal.trim(), color: selectedColor, order });
-          }
-     noteVal = "";
-     updateBox();
-   }
+       e.preventDefault();
+       if(locked || !noteVal.trim()) return;
+       
+       if(editingKey){
+         dbUpdate(dbRef(db, `ticker_notes/${editingKey}`), { text: noteVal.trim() });
+         editingKey = null;
+         document.getElementById('addBtn').textContent = "Add";
+       } else {
+              const order = rows.length ? Math.max(...rows.map(r=>r.order ?? 0)) + 1 : 0;
+              dbPush(notesRef, { text: noteVal.trim(), color: selectedColor, order });
+              activeColor = selectedColor;
+            }
+       noteVal = "";
+       updateBox();
+     }
 
   function touchStart(e,i){
        if(locked) return;
@@ -363,17 +368,19 @@ function initTicker(){
        if(inp) inp.setSelectionRange(start + 1, start + 1);
     }
   function buildColorPicker(){
-      const picker = document.getElementById('colorPicker');
-      if(!picker) return;
-      picker.innerHTML = palette.map(c=>`<button type="button" class="swatch${c===selectedColor?' selected':''}" style="background:${c}" data-c="${c}"></button>`).join('');
-      picker.querySelectorAll('.swatch').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-          selectedColor = btn.dataset.c;
-          picker.querySelectorAll('.swatch').forEach(s=>s.classList.remove('selected'));
-          btn.classList.add('selected');
+        const picker = document.getElementById('colorPicker');
+        if(!picker) return;
+        picker.innerHTML = palette.map(c=>`<button type="button" class="swatch${c===selectedColor?' selected':''}" style="background:${c}" data-c="${c}"></button>`).join('');
+        picker.querySelectorAll('.swatch').forEach(btn=>{
+          btn.addEventListener('click', ()=>{
+            selectedColor = btn.dataset.c;
+            activeColor = btn.dataset.c;
+            picker.querySelectorAll('.swatch').forEach(s=>s.classList.remove('selected'));
+            btn.classList.add('selected');
+            renderGroups(groupsCache);
+          });
         });
-      });
-    }
+      }
     buildColorPicker();
     buildKb();
   
