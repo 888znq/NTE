@@ -33,16 +33,16 @@
     html,body{margin:0;height:100%;font-family:'Segoe UI',Helvetica,sans-serif;background:#000;overflow:hidden}
     .stack{position:fixed;top:0;left:0;right:0;bottom:var(--formH);overflow-y:auto;display:block;padding:10px;box-sizing:border-box;scrollbar-width:none;-ms-overflow-style:none}
       .stack::-webkit-scrollbar{display:none;width:0;height:0}
-       .bar{width:100%;height:100%;color:#fff;border-radius:14px;position:relative;padding:12px 14px;box-sizing:border-box;box-shadow:0 3px 8px rgba(0,0,0,.5)}
-       .bar.dragging{opacity:.6;outline:3px dashed #fff;outline-offset:-3px;z-index:5}
-       .boxInner{display:flex;flex-direction:column;gap:6px;height:100%;overflow:hidden}
+       .bar{width:100%;height:100%;color:#fff;border-radius:14px;position:relative;padding:12px 14px;box-sizing:border-box;box-shadow:0 3px 8px rgba(0,0,0,.5);display:flex;flex-direction:column}
+              .bar.dragging{opacity:.6;outline:3px dashed #fff;outline-offset:-3px;z-index:5}
+              .boxInner{display:flex;flex-direction:column;justify-content:flex-end;gap:6px;flex:1;min-height:0;overflow:hidden}
          .noteLine{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-shrink:0}
                   .dot{width:6px;height:6px;min-width:6px;border-radius:50%;background:rgba(255,255,255,.85);box-shadow:0 0 4px rgba(255,255,255,.6);flex-shrink:0}
     .track{white-space:normal;word-break:break-word;font-family:'Georgia',serif;font-size:19px;font-weight:400;letter-spacing:.2px;flex:1;outline:none;cursor:text;min-width:20px;color:rgba(255,255,255,.95);text-shadow:0 1px 3px rgba(0,0,0,.35)}
         .newNoteLine{min-height:40px;cursor:text}
-      .boxHead{display:block;width:100%;font-family:'Georgia',serif;color:#fff;text-shadow:0 2px 6px rgba(0,0,0,.45);background:transparent;border:none;font-size:26px;font-weight:700;letter-spacing:1px;margin-bottom:10px;padding:0 0 8px 0;border-bottom:1px solid rgba(255,255,255,.5);outline:none;flex-shrink:0;box-sizing:border-box;text-align:center}
-              .boxHead::placeholder{color:#fff;opacity:.55;text-transform:none}
-              .boxHead:focus{border-bottom-color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.6)}
+      .boxHead{display:block;width:100%;font-family:'Georgia',serif;color:#fff;text-shadow:0 2px 6px rgba(0,0,0,.45);background:transparent;border:none;font-size:26px;font-weight:700;letter-spacing:1px;margin-top:auto;padding:8px 0 0 0;border-top:1px solid rgba(255,255,255,.5);outline:none;flex-shrink:0;box-sizing:border-box;text-align:center}
+                    .boxHead::placeholder{color:#fff;opacity:.55;text-transform:none}
+                    .boxHead:focus{border-top-color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.6)}
     @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.06);opacity:.85}}
        form{position:fixed;bottom:0;left:0;width:100%;height:var(--formH);background:#1a1a1a;display:flex;align-items:center;justify-content:center;padding:6px 10px;box-sizing:border-box;z-index:2}
              #colorPicker{height:100%;display:flex;align-items:center;justify-content:center;gap:8px;overflow-x:auto}
@@ -113,30 +113,30 @@ function initTicker(){
   }
 
   function renderGroups(groups){
-    const g = groups.find(gr => gr.color === activeColor) || { color: activeColor || palette[0], items: [] };
-    document.getElementById('stack').innerHTML = `
-      <div class="bar" style="background:${g.color}" onclick="if(event.target===this)addNoteInline('${g.color}')">
-        <input type="text" class="boxHead" spellcheck="false" data-color="${g.color}" placeholder="Untitled"
-                         value="${(titles[g.color.replace('#','')] || '').replace(/"/g,'&quot;')}"
-                         onpointerdown="event.stopPropagation()" onclick="event.stopPropagation()"
-                         onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
-                         onblur="saveTitle(this)" />
-        <div class="boxInner" onclick="if(event.target===this)addNoteInline('${g.color}')">
-          ${g.items.map(it=>`
-            <div class="noteLine">
-                          <span class="dot"></span>
-                          <span class="track" contenteditable="true" spellcheck="false" data-key="${it.key}"
-                                     onclick="event.stopPropagation()"
-                                     onblur="saveNoteText(this)"
-                                     onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();addNoteInline('${g.color}');}">${it.text}</span>
-                          <span class="lineActions">
-                            <button type="button" class="btn-action" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();deleteNote('${it.key}')">Del</button>
-                          </span>
-                        </div>`).join('')}
-          <div class="newNoteLine" onclick="event.stopPropagation();addNoteInline('${g.color}')"></div>
-        </div>
-      </div>`;
-  }
+      const g = groups.find(gr => gr.color === activeColor) || { color: activeColor || palette[0], items: [] };
+      document.getElementById('stack').innerHTML = `
+        <div class="bar" style="background:${g.color}" onclick="if(event.target===this)addNoteInline('${g.color}')">
+          <div class="boxInner" onclick="if(event.target===this)addNoteInline('${g.color}')">
+            ${g.items.map(it=>`
+              <div class="noteLine">
+                            <span class="dot"></span>
+                            <span class="track" contenteditable="true" spellcheck="false" data-key="${it.key}"
+                                       onclick="event.stopPropagation()"
+                                       onblur="saveNoteText(this)"
+                                       onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();addNoteInline('${g.color}');}">${it.text}</span>
+                            <span class="lineActions">
+                              <button type="button" class="btn-action" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();deleteNote('${it.key}')">Del</button>
+                            </span>
+                          </div>`).join('')}
+            <div class="newNoteLine" onclick="event.stopPropagation();addNoteInline('${g.color}')"></div>
+          </div>
+          <input type="text" class="boxHead" spellcheck="false" data-color="${g.color}" placeholder="Untitled"
+                           value="${(titles[g.color.replace('#','')] || '').replace(/"/g,'&quot;')}"
+                           onpointerdown="event.stopPropagation()" onclick="event.stopPropagation()"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+                           onblur="saveTitle(this)" />
+        </div>`;
+    }
 
   function render(){
       groupsCache = groupRows();
