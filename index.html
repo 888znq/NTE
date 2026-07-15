@@ -29,11 +29,10 @@
   window.__set = set;
 </script>
 <style>
-  :root{--formH:5vh}
-    html,body{margin:0;height:100%;font-family:'Segoe UI',Helvetica,sans-serif;background:#000;overflow:hidden}
-    .stack{position:fixed;top:0;left:0;right:0;bottom:var(--formH);overflow-y:auto;display:block;padding:10px;box-sizing:border-box;scrollbar-width:none;-ms-overflow-style:none}
-      .stack::-webkit-scrollbar{display:none;width:0;height:0}
-       .bar{width:100%;height:100%;color:#fff;border-radius:14px;position:relative;padding:12px 14px;box-sizing:border-box;box-shadow:0 3px 8px rgba(0,0,0,.5);display:flex;flex-direction:column}
+  html,body{margin:0;height:100%;font-family:'Segoe UI',Helvetica,sans-serif;background:#000;overflow:hidden}
+      .stack{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:row;gap:10px;padding:10px;box-sizing:border-box;overflow:hidden}
+        .stack::-webkit-scrollbar{display:none;width:0;height:0}
+         .bar{flex:1;height:100%;color:#fff;border-radius:14px;position:relative;padding:12px 14px;box-sizing:border-box;box-shadow:0 3px 8px rgba(0,0,0,.5);display:flex;flex-direction:column;min-width:0}
               .bar.dragging{opacity:.6;outline:3px dashed #fff;outline-offset:-3px;z-index:5}
               .boxInner{display:flex;flex-direction:column;justify-content:flex-end;gap:6px;flex:1;min-height:0;overflow:hidden}
          .noteLine{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-shrink:0}
@@ -76,16 +75,12 @@
 
 <div class="stack" id="stack"></div>
 
-<form onsubmit="event.preventDefault()">
-  <div id="colorPicker"></div>
-</form>
-
 <script>
 window.addEventListener('load', initTicker);
 function initTicker(){
   if(!window.__db){ setTimeout(initTicker, 50); return; }
 
-  const palette = ["#e63946","#1d3557","#2a9d8f","#6a4c93","#e76f51","#264653","#8338ec","#d90429","#3a86ff","#fb8500"];
+  const palette = ["#e63946","#1d3557"];
   let rows = []; // {key, text, color, order}
   let groupsCache = [];
   let titles = {};
@@ -113,9 +108,10 @@ function initTicker(){
   }
 
   function renderGroups(groups){
-      const g = groups.find(gr => gr.color === activeColor) || { color: activeColor || palette[0], items: [] };
-      document.getElementById('stack').innerHTML = `
-        <div class="bar" style="background:${g.color}" onclick="if(event.target===this)addNoteInline('${g.color}')">
+      document.getElementById('stack').innerHTML = palette.map((color, i) => {
+        const g = groups.find(gr => gr.color === color) || { color, items: [] };
+        return `
+        <div class="bar" data-i="${i}" style="background:${g.color}" onclick="if(event.target===this)addNoteInline('${g.color}')">
           <div class="boxInner" onclick="if(event.target===this)addNoteInline('${g.color}')">
             ${g.items.map(it=>`
               <div class="noteLine">
@@ -136,16 +132,14 @@ function initTicker(){
                            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
                            onblur="saveTitle(this)" />
         </div>`;
+      }).join('');
     }
 
   function render(){
-      groupsCache = groupRows();
-      if(activeColor === null){
-        activeColor = groupsCache.length ? groupsCache[0].color : selectedColor;
+        groupsCache = groupRows();
+        renderGroups(groupsCache);
+        fitNotes();
       }
-      renderGroups(groupsCache);
-      fitNotes();
-    }
   
     function fitNotes(){
       const inner = document.querySelector('.boxInner');
@@ -182,10 +176,9 @@ function initTicker(){
   });
 
   function addNoteInline(color){
-        const order = rows.length ? Math.max(...rows.map(r=>r.order ?? 0)) + 1 : 0;
-      const newRef = dbPush(notesRef, { text: "", color, order });
-      activeColor = color;
-      const key = newRef.key;
+          const order = rows.length ? Math.max(...rows.map(r=>r.order ?? 0)) + 1 : 0;
+        const newRef = dbPush(notesRef, { text: "", color, order });
+        const key = newRef.key;
       setTimeout(()=>{
         const el = document.querySelector(`.track[data-key="${key}"]`);
         if(el) el.focus();
