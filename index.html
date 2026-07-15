@@ -80,205 +80,205 @@ window.addEventListener('load', initTicker);
 function initTicker(){
   if(!window.__db){ setTimeout(initTicker, 50); return; }
 
-  const palette = ["#e63946","#1d3557"];
-  let rows = []; // {key, text, color, order}
-  let groupsCache = [];
-  let titles = {};
-  let selectedColor = palette[0];
-  let activeColor = null;
-  let touchX = 0, touchY = 0;
-    let dragIndex = -1, holdTimer = null, dragging = false;
-
-  const db = window.__db, dbRef = window.__ref, dbPush = window.__push,
-        dbOnValue = window.__onValue, dbRemove = window.__remove,
-        dbUpdate = window.__update, dbSet = window.__set;
-  const notesRef = dbRef(db, "ticker_notes");
-  const titlesRef = dbRef(db, "ticker_titles");
-
-  function groupRows(){
-    const map = new Map();
-    rows.forEach(r => {
-      if(!map.has(r.color)) map.set(r.color, []);
-      map.get(r.color).push(r);
-    });
-    return [...map.entries()].map(([color, items]) => {
-      const sorted = items.slice().sort((a,b)=>a.order-b.order);
-      return { color, items: sorted, order: Math.min(...sorted.map(it=>it.order)) };
-    }).sort((a,b)=>a.order-b.order);
-  }
-
-  function renderGroups(groups){
-      document.getElementById('stack').innerHTML = palette.map((color, i) => {
-        const g = groups.find(gr => gr.color === color) || { color, items: [] };
-        return `
-        <div class="bar" data-i="${i}" style="background:${g.color}" onclick="if(event.target===this)addNoteInline('${g.color}')">
-          <div class="boxInner" onclick="if(event.target===this)addNoteInline('${g.color}')">
-            ${g.items.map(it=>`
-              <div class="noteLine">
-                            <span class="dot"></span>
-                            <span class="track" contenteditable="true" spellcheck="false" data-key="${it.key}"
-                                       onclick="event.stopPropagation()"
-                                       onblur="saveNoteText(this)"
-                                       onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();addNoteInline('${g.color}');}">${it.text}</span>
-                            <span class="lineActions">
-                              <button type="button" class="btn-action" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();deleteNote('${it.key}')">Del</button>
-                            </span>
-                          </div>`).join('')}
-            <div class="newNoteLine" onclick="event.stopPropagation();addNoteInline('${g.color}')"></div>
-          </div>
-          <input type="text" class="boxHead" spellcheck="false" data-color="${g.color}" placeholder="Untitled"
-                           value="${(titles[g.color.replace('#','')] || '').replace(/"/g,'&quot;')}"
-                           onpointerdown="event.stopPropagation()" onclick="event.stopPropagation()"
-                           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
-                           onblur="saveTitle(this)" />
-        </div>`;
-      }).join('');
+  var palette = ["#FF0000","#0000FF"];
+    var rows = []; // {key, text, color, order}
+    var groupsCache = [];
+    var titles = {};
+    var selectedColor = palette[0];
+    var activeColor = null;
+    var touchX = 0, touchY = 0;
+      var dragIndex = -1, holdTimer = null, dragging = false;
+  
+    var db = window.__db, dbRef = window.__ref, dbPush = window.__push,
+          dbOnValue = window.__onValue, dbRemove = window.__remove,
+          dbUpdate = window.__update, dbSet = window.__set;
+    var notesRef = dbRef(db, "ticker_notes");
+    var titlesRef = dbRef(db, "ticker_titles");
+  
+    function groupRows(){
+      var map = new Map();
+      rows.forEach(r => {
+        if(!map.has(r.color)) map.set(r.color, []);
+        map.get(r.color).push(r);
+      });
+      return [...map.entries()].map(([color, items]) => {
+        var sorted = items.slice().sort((a,b)=>a.order-b.order);
+        return { color, items: sorted, order: Math.min(...sorted.map(it=>it.order)) };
+      }).sort((a,b)=>a.order-b.order);
     }
-
-  function render(){
-        groupsCache = groupRows();
-        renderGroups(groupsCache);
+  
+    function renderGroups(groups){
+        document.getElementById('stack').innerHTML = palette.map((color, i) => {
+          var g = groups.find(gr => gr.color === color) || { color, items: [] };
+          return `
+          <div class="bar" data-i="${i}" style="background:${g.color}" onclick="if(event.target===this)addNoteInline('${g.color}')">
+            <div class="boxInner" onclick="if(event.target===this)addNoteInline('${g.color}')">
+              ${g.items.map(it=>`
+                <div class="noteLine">
+                              <span class="dot"></span>
+                              <span class="track" contenteditable="true" spellcheck="false" data-key="${it.key}"
+                                         onclick="event.stopPropagation()"
+                                         onblur="saveNoteText(this)"
+                                         onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();addNoteInline('${g.color}');}">${it.text}</span>
+                              <span class="lineActions">
+                                <button type="button" class="btn-action" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();deleteNote('${it.key}')">Del</button>
+                              </span>
+                            </div>`).join('')}
+              <div class="newNoteLine" onclick="event.stopPropagation();addNoteInline('${g.color}')"></div>
+            </div>
+            <input type="text" class="boxHead" spellcheck="false" data-color="${g.color}" placeholder="${i === 0 ? 'EMERGENCY' : 'URGENT'}"
+                             value="${(titles[g.color.replace('#','')] || '').replace(/"/g,'&quot;')}"
+                             onpointerdown="event.stopPropagation()" onclick="event.stopPropagation()"
+                             onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"
+                             onblur="saveTitle(this)" />
+          </div>`;
+        }).join('');
+      }
+  
+    function render(){
+          groupsCache = groupRows();
+          renderGroups(groupsCache);
+          fitNotes();
+        }
+    
+      function fitNotes(){
+        var inner = document.querySelector('.boxInner');
+        if(!inner) return;
+        var tracks = inner.querySelectorAll('.track');
+        if(!tracks.length) return;
+        var size = 19;
+        tracks.forEach(t=> t.style.fontSize = size + 'px');
+        var guard = 0;
+        while(inner.scrollHeight > inner.clientHeight && size > 8 && guard < 30){
+          size -= 1;
+          tracks.forEach(t=> t.style.fontSize = size + 'px');
+          guard++;
+        }
+      }
+  
+    dbOnValue(notesRef, (snapshot) => {
+      var data = snapshot.val();
+      if(!data){ rows = []; render(); return; }
+      rows = Object.keys(data).map(key => {
+        var val = data[key];
+        if (typeof val === 'object' && val !== null) {
+          return { key, text: val.text || val.note || '', color: val.color || '#0000FF', order: val.order ?? 0 };
+        } else {
+          return { key, text: String(val), color: '#0000FF', order: 0 };
+        }
+      }).sort((a,b) => a.order - b.order);
+      render();
+    });
+  
+    dbOnValue(titlesRef, (snapshot) => {
+      titles = snapshot.val() || {};
+      render();
+    });
+  
+    function addNoteInline(color){
+            var order = rows.length ? Math.max(...rows.map(r=>r.order ?? 0)) + 1 : 0;
+          var newRef = dbPush(notesRef, { text: "", color, order });
+          var key = newRef.key;
+        setTimeout(()=>{
+          var el = document.querySelector(`.track[data-key="${key}"]`);
+          if(el) el.focus();
+          fitNotes();
+        }, 150);
+      }
+  
+    function saveNoteText(el){
+        var key = el.dataset.key;
+        var text = el.textContent.trim();
+        if(!text){ deleteNote(key); return; }
+        dbUpdate(dbRef(db, `ticker_notes/${key}`), { text });
         fitNotes();
       }
   
-    function fitNotes(){
-      const inner = document.querySelector('.boxInner');
-      if(!inner) return;
-      const tracks = inner.querySelectorAll('.track');
-      if(!tracks.length) return;
-      let size = 19;
-      tracks.forEach(t=> t.style.fontSize = size + 'px');
-      let guard = 0;
-      while(inner.scrollHeight > inner.clientHeight && size > 8 && guard < 30){
-        size -= 1;
-        tracks.forEach(t=> t.style.fontSize = size + 'px');
-        guard++;
-      }
+    function touchStart(e,i){
+           e.target.setPointerCapture(e.pointerId);
+         touchX = e.clientX;
+         touchY = e.clientY;
+         dragging = false;
+      holdTimer = setTimeout(()=>{
+        dragging = true;
+        dragIndex = i;
+        document.querySelector(`.bar[data-i="${i}"]`).classList.add('dragging');
+        if(navigator.vibrate) navigator.vibrate(30);
+      }, 400);
     }
-
-  dbOnValue(notesRef, (snapshot) => {
-    const data = snapshot.val();
-    if(!data){ rows = []; render(); return; }
-    rows = Object.keys(data).map(key => {
-      const val = data[key];
-      if (typeof val === 'object' && val !== null) {
-        return { key, text: val.text || val.note || '', color: val.color || '#1d3557', order: val.order ?? 0 };
-      } else {
-        return { key, text: String(val), color: '#1d3557', order: 0 };
-      }
-    }).sort((a,b) => a.order - b.order);
-    render();
-  });
-
-  dbOnValue(titlesRef, (snapshot) => {
-    titles = snapshot.val() || {};
-    render();
-  });
-
-  function addNoteInline(color){
-          const order = rows.length ? Math.max(...rows.map(r=>r.order ?? 0)) + 1 : 0;
-        const newRef = dbPush(notesRef, { text: "", color, order });
-        const key = newRef.key;
-      setTimeout(()=>{
-        const el = document.querySelector(`.track[data-key="${key}"]`);
-        if(el) el.focus();
-        fitNotes();
-      }, 150);
-    }
-
-  function saveNoteText(el){
-      const key = el.dataset.key;
-      const text = el.textContent.trim();
-      if(!text){ deleteNote(key); return; }
-      dbUpdate(dbRef(db, `ticker_notes/${key}`), { text });
-      fitNotes();
-    }
-
-  function touchStart(e,i){
-         e.target.setPointerCapture(e.pointerId);
-       touchX = e.clientX;
-       touchY = e.clientY;
-       dragging = false;
-    holdTimer = setTimeout(()=>{
-      dragging = true;
-      dragIndex = i;
-      document.querySelector(`.bar[data-i="${i}"]`).classList.add('dragging');
-      if(navigator.vibrate) navigator.vibrate(30);
-    }, 400);
-  }
-
-  function touchMove(e,i){
-       const dx = e.clientX - touchX;
-       const dy = e.clientY - touchY;
-       if(!dragging){
-         if(Math.abs(dx) > 10 || Math.abs(dy) > 10) clearTimeout(holdTimer);
-       } else {
-         const stackEl = document.getElementById('stack');
-         const bars = [...stackEl.children];
-         const touchYAbs = e.clientY;
-         for(const b of bars){
-          const rect = b.getBoundingClientRect();
-          if(touchYAbs > rect.top && touchYAbs < rect.bottom){
-            const overIndex = +b.dataset.i;
-            if(overIndex !== dragIndex){
-              const moved = groupsCache.splice(dragIndex,1)[0];
-              groupsCache.splice(overIndex,0,moved);
-              dragIndex = overIndex;
-              renderGroups(groupsCache);
-              document.querySelector(`.bar[data-i="${dragIndex}"]`).classList.add('dragging');
+  
+    function touchMove(e,i){
+         var dx = e.clientX - touchX;
+         var dy = e.clientY - touchY;
+         if(!dragging){
+           if(Math.abs(dx) > 10 || Math.abs(dy) > 10) clearTimeout(holdTimer);
+         } else {
+           var stackEl = document.getElementById('stack');
+           var bars = [...stackEl.children];
+           var touchYAbs = e.clientY;
+           for(var b of bars){
+            var rect = b.getBoundingClientRect();
+            if(touchYAbs > rect.top && touchYAbs < rect.bottom){
+              var overIndex = +b.dataset.i;
+              if(overIndex !== dragIndex){
+                var moved = groupsCache.splice(dragIndex,1)[0];
+                groupsCache.splice(overIndex,0,moved);
+                dragIndex = overIndex;
+                renderGroups(groupsCache);
+                document.querySelector(`.bar[data-i="${dragIndex}"]`).classList.add('dragging');
+              }
+              break;
             }
-            break;
           }
         }
       }
-    }
-
-  function touchEnd(e,i){
-     clearTimeout(holdTimer);
-     if(e.target.hasPointerCapture && e.target.hasPointerCapture(e.pointerId)) {
-       e.target.releasePointerCapture(e.pointerId);
-     }
-     if(dragging){
-            dragging = false;
-            dragIndex = -1;
-            const updates = {};
-            let idx = 0;
-            groupsCache.forEach(g => {
-              g.items.forEach(it => { updates[`${it.key}/order`] = idx++; });
+  
+    function touchEnd(e,i){
+       clearTimeout(holdTimer);
+       if(e.target.hasPointerCapture && e.target.hasPointerCapture(e.pointerId)) {
+         e.target.releasePointerCapture(e.pointerId);
+       }
+       if(dragging){
+              dragging = false;
+              dragIndex = -1;
+              var updates = {};
+              var idx = 0;
+              groupsCache.forEach(g => {
+                g.items.forEach(it => { updates[`${it.key}/order`] = idx++; });
+              });
+              dbUpdate(notesRef, updates);
+            }
+          }
+  
+    function buildColorPicker(){
+          var picker = document.getElementById('colorPicker');
+          if(!picker) return;
+          picker.innerHTML = palette.map(c=>`<button type="button" class="swatch${c===selectedColor?' selected':''}" style="background:${c}" data-c="${c}"></button>`).join('');
+          picker.querySelectorAll('.swatch').forEach(btn=>{
+            btn.addEventListener('click', ()=>{
+              selectedColor = btn.dataset.c;
+              activeColor = btn.dataset.c;
+              picker.querySelectorAll('.swatch').forEach(s=>s.classList.remove('selected'));
+              btn.classList.add('selected');
+              renderGroups(groupsCache);
             });
-            dbUpdate(notesRef, updates);
-          }
-        }
-
-  function buildColorPicker(){
-        const picker = document.getElementById('colorPicker');
-        if(!picker) return;
-        picker.innerHTML = palette.map(c=>`<button type="button" class="swatch${c===selectedColor?' selected':''}" style="background:${c}" data-c="${c}"></button>`).join('');
-        picker.querySelectorAll('.swatch').forEach(btn=>{
-          btn.addEventListener('click', ()=>{
-            selectedColor = btn.dataset.c;
-            activeColor = btn.dataset.c;
-            picker.querySelectorAll('.swatch').forEach(s=>s.classList.remove('selected'));
-            btn.classList.add('selected');
-            renderGroups(groupsCache);
           });
-        });
-      }
-    buildColorPicker();
-
-  window.touchStart = touchStart;
-    window.touchMove = touchMove;
-    window.touchEnd = touchEnd;
-    window.addNoteInline = addNoteInline;
-  window.saveNoteText = saveNoteText;
-  window.deleteNote = function(key){
-                dbRemove(dbRef(db, `ticker_notes/${key}`));
-              };
-        window.saveTitle = function(el){
-                  const key = el.dataset.color.replace('#','');
-                  const text = el.value.trim();
-                  dbSet(dbRef(db, `ticker_titles/${key}`), text);
+        }
+      buildColorPicker();
+  
+    window.touchStart = touchStart;
+      window.touchMove = touchMove;
+      window.touchEnd = touchEnd;
+      window.addNoteInline = addNoteInline;
+    window.saveNoteText = saveNoteText;
+    window.deleteNote = function(key){
+                  dbRemove(dbRef(db, `ticker_notes/${key}`));
                 };
+          window.saveTitle = function(el){
+                    var key = el.dataset.color.replace('#','');
+                    var text = el.value.trim();
+                    dbSet(dbRef(db, `ticker_titles/${key}`), text);
+                  };
   }
   </script>
 </body>
