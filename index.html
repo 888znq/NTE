@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>
-*{margin:0;box-sizing:border-box}
-html,body{height:100%;overflow:hidden;background:#000342}
+*{margin:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#000342;overscroll-behavior:none;touch-action:none;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 body{border:1px solid #fff}
 canvas{display:block;width:100%;height:100%;touch-action:none;background:#000342}
 #ui{position:fixed;bottom:4vmin;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;
@@ -11,7 +12,8 @@ button{background:#fff2;border:1px solid #fff;color:#fff;padding:6px;border-radi
 button.on{background:#fff;color:#000342}
 button svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2}
 input[type=range]{width:70px}
-#cursor{position:fixed;cursor:grab;border:2px solid #fff;background:#fff3;display:none;transform:translate(-50%,-50%);z-index:3;border-radius:50%}
+#cursor{position:fixed;left:0;top:0;cursor:grab;border:2px solid #fff;background:#fff3;display:none;
+  transform:translate(-50%,-50%);z-index:3;border-radius:50%;touch-action:none;will-change:transform}
 #cursor.eraseMode{background:transparent}
 #resizeHandle{position:absolute;bottom:14.64%;right:14.64%;transform:translate(50%,50%);width:16px;height:16px;background:#fff;border:2px solid #000342;border-radius:50%;cursor:nwse-resize;touch-action:none;z-index:4}
 #toggleHandle{position:absolute;top:-10px;left:-10px;width:20px;height:20px;background:#fff;border:2px solid #000342;border-radius:50%;cursor:pointer;touch-action:none;z-index:5;display:none;align-items:center;justify-content:center}
@@ -45,21 +47,41 @@ const NOTE_ID = "note_1";
 const canvasRef = ref(db, `notes/${NOTE_ID}`);
 
 const c=document.getElementById('c'),ctx=c.getContext('2d');
-let dpr=Math.max(1,window.devicePixelRatio||1);
+// Cap devicePixelRatio: Android phones often report 2.75-4x, which blows up the
+// canvas backing store (and every stroke()/composite call) far beyond what's
+// visually necessary. 2x is plenty sharp and keeps draw cost sane on mobile GPUs.
+let dpr=Math.min(2,Math.max(1,window.devicePixelRatio||1));
 const resize=()=>{
-  dpr=Math.max(1,window.devicePixelRatio||1);
+  dpr=Math.min(2,Math.max(1,window.devicePixelRatio||1));
   c.width=c.clientWidth*dpr;
   c.height=c.clientHeight*dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.lineCap=ctx.lineJoin='round';
     loadCanvas();
   };
-  
+
   let saveTimeout=null;
   const scheduleSave=()=>{clearTimeout(saveTimeout);saveTimeout=setTimeout(saveCanvas,600);};
   const saveCanvas=()=>{
-    try{set(canvasRef,{data:c.toDataURL('image/png'),ts:Date.now()});}
-    catch(err){console.error('save failed',err);}
+    try{
+      // Encode a copy downscaled to CSS-pixel size (1x), since loadCanvas() always
+      // draws the image back in scaled to c.clientWidth/clientHeight anyway - no
+      // visual loss, but a much smaller/faster PNG to encode and sync. toBlob is
+      // also async (unlike toDataURL), so it doesn't block the main thread.
+      const tmp=document.createElement('canvas');
+      tmp.width=c.clientWidth;
+      tmp.height=c.clientHeight;
+      tmp.getContext('2d').drawImage(c,0,0,tmp.width,tmp.height);
+      tmp.toBlob((blob)=>{
+        if(!blob)return;
+        const reader=new FileReader();
+        reader.onloadend=()=>{
+          try{set(canvasRef,{data:reader.result,ts:Date.now()});}
+          catch(err){console.error('save failed',err);}
+        };
+        reader.readAsDataURL(blob);
+      },'image/png');
+    }catch(err){console.error('save failed',err);}
   };
   const loadCanvas=()=>{
     onValue(canvasRef,(snap)=>{
@@ -84,7 +106,7 @@ const resize=()=>{
     ctx.restore();
     scheduleSave();
   };
-  
+
   resize();addEventListener('resize',resize);
 
 let mode='pen',dragging=false,drawing=false;
@@ -95,7 +117,10 @@ const closeHandle=document.getElementById('closeHandle');
 let eraserSizeVal=45,penSizeVal=4;
 let cursorVisible=false;
 
-const placeBox=(x,y)=>{cursor.style.left=x+'px';cursor.style.top=y+'px'};
+// Moves the cursor via transform (GPU compositing only) instead of left/top
+// (which forces a synchronous layout recalc on every pointer move - much more
+// costly on mobile CPUs than desktop, and a major source of the janky feel).
+const placeBox=(x,y)=>{cursor.style.transform=`translate(${x}px,${y}px) translate(-50%,-50%)`};
 
 const applyModeVisual=()=>{
   cursor.classList.toggle('eraseMode',mode==='eraser');
@@ -182,6 +207,7 @@ c.onpointerdown=e=>{
   skipStroke=false;
   lastTapTime=now;lastTapX=x;lastTapY=y;
   drawing=true;
+  c.setPointerCapture(e.pointerId);
   [canvasLastX,canvasLastY]=[x,y];
   ctx.beginPath();ctx.moveTo(x,y);
 };
