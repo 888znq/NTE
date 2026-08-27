@@ -38,44 +38,33 @@
   .notes-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); }
 
   .line-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    border: 1px solid #ffffff;
-    padding: 8px 10px 8px 16px;
-    flex: 0 0 auto;
-    margin-bottom: -1px;
-  }
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      border: 1px solid #ffffff;
+      padding: 8px 10px 8px 16px;
+      flex: 0 0 auto;
+      margin-bottom: -1px;
+    }
   .notes-list .line-row:first-child {
     margin-bottom: 0;
   }
 
-  .line-bullet {
-    flex: 0 0 auto;
-    width: 1.2em;
-    text-align: left;
-    font-family: inherit;
-    line-height: 1.4;
-    font-size: clamp(11px, var(--note-font-size, 16px), 4.5vw);
-    padding: 2px 0;
-    color: #ffffff;
-    user-select: none;
-  }
-
   .line-text {
-    flex: 1 1 auto;
-    min-width: 0;
-    background: transparent;
-    border: none;
-    outline: none;
-    resize: none;
-    overflow: hidden;
-    color: #ffffff;
-    font-family: inherit;
-    line-height: 1.4;
-    font-size: clamp(11px, var(--note-font-size, 16px), 4.5vw);
-    padding: 2px 0;
-  }
+      flex: 1 1 auto;
+      min-width: 0;
+      background: transparent;
+      border: none;
+      outline: none;
+      resize: none;
+      overflow: hidden;
+      color: #ffffff;
+      font-family: inherit;
+      line-height: 1.4;
+      font-size: clamp(11px, var(--note-font-size, 16px), 4.5vw);
+      letter-spacing: 0.03em;
+      padding: 2px 0;
+    }
 
   .line-del {
     flex: 0 0 auto;
@@ -96,33 +85,24 @@
     align-items: flex-start;
     gap: 6px;
     border-top: 1px solid #ffffff;
-    padding: 8px 10px 8px 16px;
-  }
-
-  .input-row > span {
-    flex: 0 0 auto;
-    width: 1.2em;
-    text-align: left;
-    font-size: clamp(11px, var(--note-font-size, 16px), 4.5vw);
-    line-height: 1.4;
-    padding: 2px 0;
-    user-select: none;
+    padding: 8px 10px;
   }
 
   #inputText {
-    flex: 1 1 auto;
-    min-width: 0;
-    background: transparent;
-    border: none;
-    outline: none;
-    resize: none;
-    overflow: hidden;
-    color: #ffffff;
-    font-family: inherit;
-    line-height: 1.4;
-    font-size: clamp(11px, var(--note-font-size, 16px), 4.5vw);
-    padding: 2px 0;
-  }
+      flex: 1 1 auto;
+      min-width: 0;
+      background: transparent;
+      border: none;
+      outline: none;
+      resize: none;
+      overflow: hidden;
+      color: #ffffff;
+      font-family: inherit;
+      line-height: 1.4;
+      font-size: clamp(11px, var(--note-font-size, 16px), 4.5vw);
+      letter-spacing: 0.03em;
+      padding: 2px 0;
+    }
 
   /* ---------- Bottom zoom slider ---------- */
   .zoom-bar {
@@ -135,12 +115,19 @@
   }
 
   .zoom-label {
-    font-size: 16px;
-    color: #ffffff;
-    width: 18px;
-    flex: 0 0 auto;
-    text-align: center;
-  }
+      font-size: 16px;
+      color: #ffffff;
+      width: 18px;
+      flex: 0 0 auto;
+      text-align: center;
+    }
+  
+    .input-row > span {
+        flex: 0 0 auto;
+        font-size: clamp(11px, var(--note-font-size, 16px), 4.5vw);
+        line-height: 1.4;
+        padding: 2px 0;
+      }
 
   input[type="range"] {
     flex: 1 1 auto;
@@ -213,69 +200,70 @@
 
   const STORAGE_KEY = 'notes_app_data_v1';
   const ZOOM_KEY = 'notes_app_zoom_v1';
+  const BULLET = '•\u00A0';
 
   const notesList = document.getElementById('notesList');
   const inputText = document.getElementById('inputText');
   const zoomSlider = document.getElementById('zoomSlider');
 
   let isRemoteUpdate = false;
-  let isEditingNote = false;
-  let localSaveTimeout = null;
-  let remoteSyncTimeout = null;
-  let lastSyncedText = null;
-
-  function currentLinesFromDOM() {
-    return [...notesList.querySelectorAll('.line-text')].map(r => r.value);
-  }
-
-  function loadNotesLocal() {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    return raw.split('\n').filter(l => l.trim() !== '');
-  }
-
-  function scheduleSave() {
-    clearTimeout(localSaveTimeout);
-    localSaveTimeout = setTimeout(saveLocalOnly, 80);
-
-    clearTimeout(remoteSyncTimeout);
-    remoteSyncTimeout = setTimeout(syncRemote, 1200);
-  }
-
-  function saveLocalOnly() {
-    const lines = currentLinesFromDOM();
-    localStorage.setItem(STORAGE_KEY, lines.join('\n'));
-  }
-
-  function syncRemote() {
-    const lines = currentLinesFromDOM();
-    const text = lines.join('\n');
-    if (text === lastSyncedText) return;
-    lastSyncedText = text;
-    try {
-      set(notesRef, { lines: lines, ts: Date.now() });
-    } catch (err) {
-      console.error('sync failed', err);
+    let isEditingNote = false;
+    let localSaveTimeout = null;
+    let remoteSyncTimeout = null;
+    let lastSyncedText = null;
+  
+    function currentLinesFromDOM() {
+      return [...notesList.querySelectorAll('.line-text')].map(r => r.value.replace(/^•\s*/, ''));
     }
-  }
-
-  function listenRemote() {
-    onValue(notesRef, (snap) => {
-      const val = snap.val();
-      if (!val || !Array.isArray(val.lines)) return;
-      const incomingText = val.lines.join('\n');
-      if (incomingText === lastSyncedText) return;
-      lastSyncedText = incomingText;
-      if (isEditingNote) return;
-      const activeEl = document.activeElement;
-      const isEditingInput = activeEl === inputText;
-      isRemoteUpdate = true;
-      renderNotes(val.lines);
-      localStorage.setItem(STORAGE_KEY, val.lines.join('\n'));
-      isRemoteUpdate = false;
-      if (isEditingInput) inputText.focus();
-    });
-  }
+  
+    function loadNotesLocal() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      return raw.split('\n').filter(l => l.trim() !== '');
+    }
+  
+    function scheduleSave() {
+      clearTimeout(localSaveTimeout);
+      localSaveTimeout = setTimeout(saveLocalOnly, 80);
+  
+      clearTimeout(remoteSyncTimeout);
+      remoteSyncTimeout = setTimeout(syncRemote, 1200);
+    }
+  
+    function saveLocalOnly() {
+      const lines = currentLinesFromDOM();
+      localStorage.setItem(STORAGE_KEY, lines.join('\n'));
+    }
+  
+    function syncRemote() {
+      const lines = currentLinesFromDOM();
+      const text = lines.join('\n');
+      if (text === lastSyncedText) return;
+      lastSyncedText = text;
+      try {
+        set(notesRef, { lines: lines, ts: Date.now() });
+      } catch (err) {
+        console.error('sync failed', err);
+      }
+    }
+  
+    function listenRemote() {
+      onValue(notesRef, (snap) => {
+        const val = snap.val();
+        if (!val || !Array.isArray(val.lines)) return;
+        const incomingText = val.lines.join('\n');
+        if (incomingText === lastSyncedText) return;
+        lastSyncedText = incomingText;
+        if (isEditingNote) return;
+        const activeEl = document.activeElement;
+        const isEditingInput = activeEl === inputText;
+        isRemoteUpdate = true;
+        renderNotes(val.lines);
+        localStorage.setItem(STORAGE_KEY, val.lines.join('\n'));
+        isRemoteUpdate = false;
+        if (isEditingInput) inputText.focus();
+      });
+    }
 
   function loadZoom() {
     const z = localStorage.getItem(ZOOM_KEY);
@@ -299,54 +287,66 @@
     const row = document.createElement('div');
     row.className = 'line-row';
 
-    const bullet = document.createElement('span');
-    bullet.className = 'line-bullet';
-    bullet.textContent = '•';
-
     const textarea = document.createElement('textarea');
-    textarea.className = 'line-text';
-    textarea.value = text.replace(/^•\s*/, '');
-    textarea.rows = 1;
-
-    textarea.addEventListener('focus', () => {
-      isEditingNote = true;
-    });
-
-    textarea.addEventListener('blur', () => {
-      isEditingNote = false;
-      syncRemote();
-    });
-
-    textarea.addEventListener('input', () => {
-      autoGrow(textarea);
-      scheduleSave();
-    });
-
-    textarea.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const newRow = createNoteRow('');
-        row.insertAdjacentElement('afterend', newRow);
-        const newTextarea = newRow.querySelector('.line-text');
-        autoGrow(newTextarea);
-        newTextarea.focus();
-        scheduleSave();
+        textarea.className = 'line-text';
+        textarea.value = BULLET + text.replace(/^•\s*/, '');
+        textarea.rows = 1;
+    
+        textarea.addEventListener('focus', () => {
+              isEditingNote = true;
+            });
+        
+            textarea.addEventListener('blur', () => {
+              isEditingNote = false;
+              syncRemote();
+            });
+        
+            textarea.addEventListener('input', () => {
+              if (!textarea.value.startsWith(BULLET)) {
+                const stripped = textarea.value.replace(/^[•\u00A0\s]*/, '');
+                const caret = textarea.selectionStart;
+                const removedLen = textarea.value.length - (BULLET.length + stripped.length);
+                textarea.value = BULLET + stripped;
+                const newCaret = Math.max(BULLET.length, caret - removedLen);
+                textarea.setSelectionRange(newCaret, newCaret);
+              }
+              autoGrow(textarea);
+              scheduleSave();
+            });
+        
+            textarea.addEventListener('keydown', (e) => {
+              const atBulletBoundary = textarea.selectionStart <= BULLET.length && textarea.selectionEnd <= BULLET.length;
+              if (atBulletBoundary && (e.key === 'Backspace' || e.key === 'Delete')) {
+                if (textarea.selectionStart === textarea.selectionEnd && textarea.selectionStart <= BULLET.length) {
+                  e.preventDefault();
+                }
+              }
+            });
+        
+            textarea.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                const newRow = createNoteRow('');
+                row.insertAdjacentElement('afterend', newRow);
+                const newTextarea = newRow.querySelector('.line-text');
+                autoGrow(newTextarea);
+                newTextarea.focus();
+                scheduleSave();
+              }
+            });
+    
+        const del = document.createElement('button');
+            del.className = 'line-del';
+            del.textContent = '✕';
+            del.addEventListener('click', () => {
+              row.remove();
+              scheduleSave();
+            });
+    
+        row.appendChild(textarea);
+        row.appendChild(del);
+        return row;
       }
-    });
-
-    const del = document.createElement('button');
-    del.className = 'line-del';
-    del.textContent = '✕';
-    del.addEventListener('click', () => {
-      row.remove();
-      scheduleSave();
-    });
-
-    row.appendChild(bullet);
-    row.appendChild(textarea);
-    row.appendChild(del);
-    return row;
-  }
 
   function addNote(text) {
     if (text.trim() === '') return;
