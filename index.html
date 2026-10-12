@@ -163,6 +163,90 @@
     height: 2px;
     background: #ffffff;
   }
+/* ---------- Permanent on-screen keyboard ---------- */
+  .kb {
+    flex: 0 0 auto;
+    border-top: 1px solid #ffffff;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  .kb-row {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+  }
+  .kb-key {
+    flex: 1 1 0;
+    min-width: 0;
+    height: var(--kb-key-h, 40px);
+    background: transparent;
+    border: 1px solid #ffffff;
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 16px;
+    border-radius: 4px;
+    padding: 0;
+    cursor: pointer;
+  }
+  .kb-key:active { background: #ffffff; color: #000432; }
+  .kb-key.kb-fn { flex: 1.5 1 0; }
+  .kb-key.kb-space { flex: 5 1 0; }
+  .kb-key.kb-on { background: #ffffff; color: #000432; }
+    .kb { border-top: none; }
+      .kb-divider {
+        flex: 0 0 auto;
+        position: relative;
+        z-index: 2;
+        height: 1px;
+        background: #ffffff;
+        cursor: row-resize;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .kb-divider::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: -8px;
+        bottom: -6px;
+      }
+      .kb-divider.kb-dragging { box-shadow: 0 0 0 1px #ffffff; }
+        .kb { padding-top: 8px; }
+        .kb-divider input[type="range"] {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 100%;
+          height: 16px;
+          margin: 0;
+          background: transparent;
+          pointer-events: none;
+          z-index: 1;
+        }
+        .kb-divider input[type="range"]::-webkit-slider-thumb {
+          width: 16px;
+          height: 16px;
+          pointer-events: auto;
+          cursor: pointer;
+        }
+        .kb-divider input[type="range"]::-moz-range-thumb {
+          width: 16px;
+          height: 16px;
+          pointer-events: auto;
+          cursor: pointer;
+        }
+        .kb-divider input[type="range"]::-moz-range-track {
+          background: transparent;
+        }
 </style>
 </head>
 <body>
@@ -171,14 +255,16 @@
 
   <div class="input-row">
     <span>•</span>
-    <textarea id="inputText" rows="1" placeholder=""></textarea>
+    <textarea id="inputText" rows="1" placeholder="" inputmode="none"></textarea>
   </div>
 
-  <div class="zoom-bar">
-    <span class="zoom-label">−</span>
+  <!-- zoom slider now lives inside the divider below -->
+
+<div class="kb-divider" id="kbDivider">
     <input type="range" id="zoomSlider" min="12" max="36" value="16" step="1">
-    <span class="zoom-label">+</span>
   </div>
+
+  <div class="kb" id="kb"></div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -197,6 +283,7 @@
   const db = getDatabase(fbApp);
   const NOTES_ID = "notes_1";
   const notesRef = ref(db, `textNotes/${NOTES_ID}`);
+    var kbRef = ref(db, 'textNotes/' + NOTES_ID + '_kb');
 
   const STORAGE_KEY = 'notes_app_data_v1';
   const ZOOM_KEY = 'notes_app_zoom_v1';
@@ -205,6 +292,10 @@
   const notesList = document.getElementById('notesList');
   const inputText = document.getElementById('inputText');
   const zoomSlider = document.getElementById('zoomSlider');
+    var kbEl = document.getElementById('kb');
+    var kbShift = false;
+    var kbSym = false;
+    var kbTarget = null;
 
   let isRemoteUpdate = false;
     let isEditingNote = false;
@@ -291,9 +382,11 @@
         textarea.className = 'line-text';
         textarea.value = BULLET + text.replace(/^•\s*/, '');
         textarea.rows = 1;
+                textarea.setAttribute('inputmode', 'none');
     
         textarea.addEventListener('focus', () => {
               isEditingNote = true;
+                            kbTarget = textarea;
             });
         
             textarea.addEventListener('blur', () => {
@@ -392,7 +485,158 @@
   zoomSlider.value = initialZoom;
   applyZoom(initialZoom);
   inputText.focus();
-  listenRemote();
+  var KB_LAYERS = {
+      abc: [
+        ['q','w','e','r','t','y','u','i','o','p'],
+        ['a','s','d','f','g','h','j','k','l'],
+        ['SHIFT','z','x','c','v','b','n','m','BACK'],
+        ['MODE',',','SPACE','.','ENTER']
+      ],
+      sym: [
+        ['1','2','3','4','5','6','7','8','9','0'],
+        ['@','#','$','%','&','-','+','(',')'],
+        ['=','*','"',"'",':',';','!','?','BACK'],
+        ['MODE',',','SPACE','.','ENTER']
+      ]
+    };
+  
+    function renderKeyboard() {
+      kbEl.innerHTML = '';
+      var layer = kbSym ? KB_LAYERS.sym : KB_LAYERS.abc;
+      for (var r = 0; r < layer.length; r++) {
+        var rowEl = document.createElement('div');
+        rowEl.className = 'kb-row';
+        for (var c = 0; c < layer[r].length; c++) {
+          var k = layer[r][c];
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'kb-key';
+          btn.setAttribute('data-key', k);
+          if (k === 'SHIFT') {
+            btn.textContent = '⇧';
+            btn.className += ' kb-fn' + (kbShift ? ' kb-on' : '');
+          } else if (k === 'BACK') {
+            btn.textContent = '⌫';
+            btn.className += ' kb-fn';
+          } else if (k === 'MODE') {
+            btn.textContent = kbSym ? 'ABC' : '?123';
+            btn.className += ' kb-fn';
+          } else if (k === 'ENTER') {
+            btn.textContent = '↵';
+            btn.className += ' kb-fn';
+          } else if (k === 'SPACE') {
+            btn.textContent = '␣';
+            btn.className += ' kb-space';
+          } else {
+            btn.textContent = (kbShift && !kbSym) ? k.toUpperCase() : k;
+          }
+          rowEl.appendChild(btn);
+        }
+        kbEl.appendChild(rowEl);
+      }
+    }
+  
+    function kbHandle(key) {
+      var t = kbTarget;
+      if (!t || !t.isConnected) { t = inputText; kbTarget = t; }
+      if (key === 'SHIFT') { kbShift = !kbShift; renderKeyboard(); return; }
+      if (key === 'MODE') { kbSym = !kbSym; kbShift = false; renderKeyboard(); return; }
+      if (document.activeElement !== t) t.focus();
+      if (key === 'ENTER') {
+        t.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        return;
+      }
+      var s = t.selectionStart;
+      var e2 = t.selectionEnd;
+      var minPos = t.classList.contains('line-text') ? BULLET.length : 0;
+      if (key === 'BACK') {
+        var from = (s === e2) ? s - 1 : Math.max(s, minPos);
+        if (from < minPos || from >= e2) return;
+        t.setRangeText('', from, e2, 'end');
+      } else {
+        var ch = (key === 'SPACE') ? ' ' : ((kbShift && !kbSym) ? key.toUpperCase() : key);
+        var from2 = Math.max(s, minPos);
+        var to2 = Math.max(e2, from2);
+        t.setRangeText(ch, from2, to2, 'end');
+        if (kbShift && !kbSym) { kbShift = false; renderKeyboard(); }
+      }
+      t.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  
+    function kbPress(e) {
+      var btn = e.target.closest ? e.target.closest('.kb-key') : null;
+      if (!btn) return;
+      e.preventDefault();
+      kbHandle(btn.getAttribute('data-key'));
+    }
+  
+    var KBH_KEY = 'notes_app_kbh_v1';
+      var KBH_MIN = 28;
+      var KBH_MAX = 80;
+      var kbDivider = document.getElementById('kbDivider');
+      var kbHeight = parseInt(localStorage.getItem(KBH_KEY), 10);
+      if (isNaN(kbHeight)) kbHeight = 40;
+      var kbDragActive = false;
+      var kbDragStartY = 0;
+      var kbDragStartH = 40;
+    
+      function clampKbHeight(v) {
+        return Math.max(KBH_MIN, Math.min(KBH_MAX, Math.round(v)));
+      }
+    
+      function applyKbHeight(v) {
+        kbHeight = clampKbHeight(v);
+        document.documentElement.style.setProperty('--kb-key-h', kbHeight + 'px');
+      }
+    
+      applyKbHeight(kbHeight);
+    
+      kbDivider.addEventListener('pointerdown', function (e) {
+          if (e.target === zoomSlider) return;
+        kbDragActive = true;
+        kbDragStartY = e.clientY;
+        kbDragStartH = kbHeight;
+        kbDivider.classList.add('kb-dragging');
+        try { kbDivider.setPointerCapture(e.pointerId); } catch (err) {}
+        e.preventDefault();
+      });
+    
+      kbDivider.addEventListener('pointermove', function (e) {
+        if (!kbDragActive) return;
+        applyKbHeight(kbDragStartH + (kbDragStartY - e.clientY) / 4);
+      });
+    
+      function kbDragEnd() {
+        if (!kbDragActive) return;
+        kbDragActive = false;
+        kbDivider.classList.remove('kb-dragging');
+        localStorage.setItem(KBH_KEY, String(kbHeight));
+        try {
+          set(kbRef, { h: kbHeight, ts: Date.now() });
+        } catch (err) {
+          console.error('kb height sync failed', err);
+        }
+      }
+    
+      kbDivider.addEventListener('pointerup', kbDragEnd);
+      kbDivider.addEventListener('pointercancel', kbDragEnd);
+    
+      onValue(kbRef, function (snap) {
+        var val = snap.val();
+        if (!val || typeof val.h !== 'number') return;
+        if (kbDragActive) return;
+        if (val.h === kbHeight) return;
+        applyKbHeight(val.h);
+        localStorage.setItem(KBH_KEY, String(kbHeight));
+      });
+    
+      kbEl.addEventListener('mousedown', kbPress);
+    kbEl.addEventListener('touchstart', kbPress, { passive: false });
+    inputText.addEventListener('focus', function () { kbTarget = inputText; });
+    kbTarget = inputText;
+    renderKeyboard();
+  
+    listenRemote();
 </script>
 
 </body>
